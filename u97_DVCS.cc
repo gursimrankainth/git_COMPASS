@@ -12,11 +12,11 @@
 #include "PaSetup.h"
 #include "PaAlgo.h"
 #include "PaHodoHelper.h"
+//#include "Tools_Camera.hh"
 #include "PaEvent.h" 
 #include "G3part.h" 
 
 #include "/Users/gursimran/cern/flux_files/flux_Johannes/functions/TiS_range.cc"
-//#include "/afs/cern.ch/user/g/gkainth/flux_files/flux_Johannes/functions/TiS_range.cc"
 #include "ecal_time_cuts.h"
 
 /// ! THERE IS AN ISSUE WITH HODOHELPER SO YOU CAN HAVE ONE INPUT FILE AT A TIME!
@@ -41,7 +41,8 @@ void printDebug(const std::string &message, bool forcePrint = false) {
 void UserEvent97(PaEvent & e) {
 
   // Define constants
-  static PaHodoHelper* HodoHelper = NULL; 
+  static PaHodoHelper* HodoHelper;
+  //static PaCamera*     cam_inst;
 
   const double M_pi    = G3partMass[8]; // Pion mass 
   const double M_gamma = G3partMass[1]; // Photon mass
@@ -78,6 +79,7 @@ void UserEvent97(PaEvent & e) {
   static TH1F* h97_gamma_E_EC1 = NULL;
   static TH1F* h97_gamma_E_EC2 = NULL;
   static TH1F* h97_E_miss      = NULL;
+  static TH1F* h97_M2_miss     = NULL;
 
   static TTree* tree(NULL);
 
@@ -209,14 +211,7 @@ void UserEvent97(PaEvent & e) {
   static bool first(true);
   if (first) { // histograms and Ntuples booking block
     Phast::Ref().HistFileDir("UserEvent97");
-
-    if (HodoHelper == NULL) {
-      std::cout << " *** HodoHelper is NULL. Initializing ... ***\n" << std::flush;
-      HodoHelper = &PaHodoHelper::Init("", true);
-      //HodoHelper = &PaHodoHelper::Init("/Users/gursimran/cern/phast.8.032/dat/trigger_config/2016",true);
-      //HodoHelper = &PaHodoHelper::Init("/afs/cern.ch/user/g/gkainth/phast/dat/trigger_config/2016",true);
-    }
-
+   
     // 1D and 2D
     int nCuts = cutCounts.size();
     h97_cutStats = new TH1F("h97_cutStats", "Event Cuts Breakdown; Cut; Number of Events Removed", nCuts, 0, nCuts);
@@ -239,9 +234,9 @@ void UserEvent97(PaEvent & e) {
     //h97_outMu_phi   = new TH1F("h97_outMu_phi", "Phi Scattered Muon (rad); Phi [rad]; Events", 100, -M_PI, M_PI);
 
     h97_y     = new TH1F("h97_y", "Fractional Energy Loss of Incoming Muon (y); y; Events", 100, 0, 1);
-    h97_Q2    = new TH1F("h97_Q2", "Four-momentum Transfer Squared (Q2); Q2 [GeV2]; Events", 100, 0, 10);
-    h97_W2    = new TH1F("h97_W2", "Effective Mass of final state hadrons Squared (W2); W2 [GeV2]; Events; W2 [GeV2]", 100, 0, 350);
-    h97_Q2xbj = new TH2F("h97_Q2xbj", "Kinematic Coverage of Dataset; x_bj; Q2 [GeV2]", 100, 0, 1, 100, 0, 100);
+    h97_Q2    = new TH1F("h97_Q2", "Four-momentum Transfer Squared (Q^{2}); Q^{2} [GeV^{2}]; Events", 100, 0, 10);
+    h97_W2    = new TH1F("h97_W2", "Effective Mass of final state hadrons Squared (W^{2}); W^{2} [GeV^{2}]; Events", 100, 0, 350);
+    h97_Q2xbj = new TH2F("h97_Q2xbj", "Kinematic Coverage of Dataset; x_{bj}; Q^{2} [GeV^{2}]", 100, 0, 1, 100, 0, 100);
 
     const int nBins = 100;       // Number of bins
     double xMin = 1e-3;          // Minimum x value (avoid 0 because log(0) is undefined)
@@ -250,12 +245,13 @@ void UserEvent97(PaEvent & e) {
     for (int i = 0; i <= nBins; ++i) {
       binEdges[i] = xMin * pow(xMax / xMin, double(i) / nBins);
     }
-    h97_xbj = new TH1F("h97_xbj", "Elasticity of the Scattering Process (x_bj); x_bj; Events", nBins, binEdges);
+    h97_xbj = new TH1F("h97_xbj", "Elasticity of the Scattering Process (x_{bj}); x_{bj}; Events", nBins, binEdges);
 
     h97_gamma_E_EC0 = new TH1F("h97_E_EC0", "Photon Energy ECal 0 - Low Energy Cut; E_{#gamma} [GeV]; Counts", 100, 0, 50);
     h97_gamma_E_EC1 = new TH1F("h97_E_EC1", "Photon Energy ECal 1 - Low Energy Cut; E_{#gamma} [GeV]; Counts", 100, 0, 100);
     h97_gamma_E_EC2 = new TH1F("h97_E_EC2", "Photon Energy ECal 2 - Low Energy Cut; E_{#gamma} [GeV]; Counts", 100, 0, 200);
     h97_E_miss      = new TH1F("h97_E_miss", "Missing Energy (All ECals); E_{#gamma} [GeV]; Counts", 100, -20, 20);
+    h97_M2_miss     = new TH1F("h97_M2_miss", "Missing Mass Squared (All ECals); M^{2}_{#gamma} [GeV^{2}/c^{4}]; Counts", 100, 0, 300);
 
     //
     // Ntuple definition 
@@ -331,7 +327,14 @@ void UserEvent97(PaEvent & e) {
   //}
 
   //*******************************************
-  Run        = e.RunNum();
+  Run = e.RunNum();
+  if (Run != LastRun) { // Reinitialize HodoHelper and Set_TiSrange only if the run number changes 
+      HodoHelper = & PaHodoHelper::Init("", true);  
+      // Set_TiSrange("PATH_TO_FLUX_FILES", runMin, runMax);
+      Set_TiSrange("/Users/gursimran/cern/flux_files/flux_Johannes/2016/flux_files", Run, Run);
+      LastRun = Run;  // Update LastRun to the current run number
+  }
+
   Evt        = e.UniqueEvNum();
   Year       = e.Year();
   EvtInSpill = e.EvInSpill(); 
@@ -339,9 +342,6 @@ void UserEvent97(PaEvent & e) {
 
   // Time in spill check 
   TimeInSpill  = e.TimeInSpill(); // check the time in spill 
-  // Set_TiSrange("PATH_TO_FLUX_FILES", runMin, runMax);
-  Set_TiSrange("/Users/gursimran/cern/flux_files/flux_Johannes/2016/flux_files", Run, Run);
-  //Set_TiSrange("/afs/cern.ch/user/g/gkainth/flux_files/flux_Johannes/2016/flux_files", Run, Run);
   fluxFlags.TiS_flag = Check_TiS_window(Run,Spill,TimeInSpill);
 
   //*******************************************  
@@ -352,7 +352,9 @@ void UserEvent97(PaEvent & e) {
   cutCounts["Cut 00"].first++;
 
   // Loop over reconstructed vertices in the event 
+  //std::cout << std::endl << "DEBUG :: " << Evt << ", " << e.NVertex() << std::endl;
   for (int iv = 0; iv < e.NVertex(); iv++) { // begin loop over vertices
+
   fluxFlags.allVtx_flag = true;
   if (fluxFlags.allVtx_flag && !cutCounts["Cut 01"].second) {
     cutCounts["Cut 01"].first++;
@@ -401,59 +403,59 @@ void UserEvent97(PaEvent & e) {
       cutCounts["Cut 05"].second = true;
     }
 
-    if (beam_track.ZFirst() >= -78.5) continue; // incoming muon was first measured before the target
-    fluxFlags.zFirst_flag = (beam_track.ZFirst() < -78.5);
-    if (fluxFlags.zFirst_flag && !cutCounts["Cut 06"].second) {
+    // PaAlgo::CrossCells(t_beam.vTPar(0),run, Rmax, Ymax, tgt_zmin, tgt_zmax, RmaxMC) - cut 4 starts here
+    if (!(PaAlgo::CrossCells(beam_track.vTPar(0),Run, 1.9, 1.2, -318.5, -78.5, 2))) continue;
+    fluxFlags.passTarget_flag = PaAlgo::CrossCells(beam_track.vTPar(0), Run, 1.9, 1.2, -318.5, -78.5, 2);
+    if (fluxFlags.passTarget_flag && !cutCounts["Cut 06"].second) {
       cutCounts["Cut 06"].first++;
       cutCounts["Cut 06"].second = true;
+    }
+
+    if (beam_track.ZFirst() >= -78.5) continue; // incoming muon was first measured before the target
+    fluxFlags.zFirst_flag = (beam_track.ZFirst() < -78.5);
+    if (fluxFlags.zFirst_flag && !cutCounts["Cut 07"].second) {
+      cutCounts["Cut 07"].first++;
+      cutCounts["Cut 07"].second = true;
+    }
+
+    // incoming muon is detected by detectors along the beamline  
+    int nhits_FI  = beam_track.NHitsFoundInDetect("FI"); 
+		int nhits_SI  = beam_track.NHitsFoundInDetect("SI"); 
+    int nhits_BMS = beam_track.NHitsFoundInDetect("BM");
+
+    if ((nhits_FI < 2)) continue; 
+    fluxFlags.FI_flag = (nhits_FI >= 2);
+    if (fluxFlags.FI_flag && !cutCounts["Cut 08"].second) {
+      cutCounts["Cut 08"].first++;
+      cutCounts["Cut 08"].second = true;
+    }
+
+		if ((nhits_SI < 3)) continue;
+    fluxFlags.SI_flag = (nhits_SI >= 3);
+    if (fluxFlags.SI_flag && !cutCounts["Cut 09"].second) {
+      cutCounts["Cut 09"].first++;
+      cutCounts["Cut 09"].second = true;
+    }
+
+    if ((nhits_BMS < 3)) continue; 
+    fluxFlags.BMS_flag = (nhits_BMS >= 3); 
+    if (fluxFlags.BMS_flag && !cutCounts["Cut 10"].second) {
+      cutCounts["Cut 10"].first++;
+      cutCounts["Cut 10"].second = true;
     }
 
     double inMu_mom = beam_track.vTPar(0).Mom();
     if (inMu_mom < 140.0 || inMu_mom > 180.0) continue; // momentum falls within acceptable range
     fluxFlags.momRange_flag = (inMu_mom >= 140.0 && inMu_mom <= 180.0);
-    if (fluxFlags.momRange_flag && !cutCounts["Cut 07"].second) {
-      cutCounts["Cut 07"].first++;
-      cutCounts["Cut 07"].second = true;
+    if (fluxFlags.momRange_flag && !cutCounts["Cut 11"].second) {
+      cutCounts["Cut 11"].first++;
+      cutCounts["Cut 11"].second = true;
     }
     
     double inMu_momErr = sqrt(beam_track.vTPar(0)(5,5))/(beam_track.vTPar(0)(5)*beam_track.vTPar(0)(5));
     if (inMu_momErr > 0.025*inMu_mom) continue; // momentum error falls within acceptable range  
     fluxFlags.momErr_flag = (inMu_momErr <= 0.025*inMu_mom);
-    if (fluxFlags.momErr_flag && !cutCounts["Cut 08"].second) {
-      cutCounts["Cut 08"].first++;
-      cutCounts["Cut 08"].second = true;
-    }
-
-    // incoming muon is detected by detectors along the beamline 
-    int nhits_BMS = beam_track.NHitsFoundInDetect("BM"); 
-    int nhits_FI  = beam_track.NHitsFoundInDetect("FI"); 
-		int nhits_SI  = beam_track.NHitsFoundInDetect("SI"); 
-
-    if ((nhits_BMS < 3)) continue; 
-    fluxFlags.BMS_flag = (nhits_BMS >= 3); 
-    if (fluxFlags.BMS_flag && !cutCounts["Cut 09"].second) {
-      cutCounts["Cut 09"].first++;
-      cutCounts["Cut 09"].second = true;
-    }
-
-    if ((nhits_FI < 2)) continue; 
-    fluxFlags.FI_flag = (nhits_FI >= 2);
-    if (fluxFlags.FI_flag && !cutCounts["Cut 10"].second) {
-      cutCounts["Cut 10"].first++;
-      cutCounts["Cut 10"].second = true;
-    }
-
-		if ((nhits_SI < 3)) continue;
-    fluxFlags.SI_flag = (nhits_SI >= 3);
-    if (fluxFlags.SI_flag && !cutCounts["Cut 11"].second) {
-      cutCounts["Cut 11"].first++;
-      cutCounts["Cut 11"].second = true;
-    }
-
-    // PaAlgo::CrossCells(t_beam.vTPar(0),run, Rmax, Ymax, tgt_zmin, tgt_zmax, RmaxMC) - cut 4 starts here
-    if (!(PaAlgo::CrossCells(beam_track.vTPar(0),Run, 1.9, 1.2, -318.5, -78.5, 2))) continue;
-    fluxFlags.passTarget_flag = PaAlgo::CrossCells(beam_track.vTPar(0), Run, 1.9, 1.2, -318.5, -78.5, 2);
-    if (fluxFlags.passTarget_flag && !cutCounts["Cut 12"].second) {
+    if (fluxFlags.momErr_flag && !cutCounts["Cut 12"].second) {
       cutCounts["Cut 12"].first++;
       cutCounts["Cut 12"].second = true;
     }
@@ -483,12 +485,13 @@ void UserEvent97(PaEvent & e) {
     bool isInTarget = PaAlgo::InTarget(Par_beam, 'O', Run, 1.9, 1.2, -318.5, -78.5, 2);
     if (!isInTarget) continue; // vertex is in the target  
     eventFlags.vertex_flag = isInTarget;
+
     if (eventFlags.vertex_flag && !cutCounts["Cut 15"].second) {
       cutCounts["Cut 15"].first++;
       cutCounts["Cut 15"].second = true;
     }
 
-    if (!eventFlags.trig_flag) continue; 
+    //if (!eventFlags.trig_flag) continue; 
     if (eventFlags.trig_flag && !cutCounts["Cut 16"].second) {
       cutCounts["Cut 16"].first++;
       cutCounts["Cut 16"].second = true;
@@ -506,13 +509,10 @@ void UserEvent97(PaEvent & e) {
       eventFlags.hodo_flag = true;
 			i_omu = i_omu_check_hodo;
 		}
-
-    if (!eventFlags.hodo_flag) continue; 
     if (eventFlags.hodo_flag && !cutCounts["Cut 17"].second) {
       cutCounts["Cut 17"].first++;
       cutCounts["Cut 17"].second = true;
     }
-
 
     const PaParticle & outMu = e.vParticle(i_omu);
     int outMu_itrack = outMu.iTrack();
@@ -550,8 +550,8 @@ void UserEvent97(PaEvent & e) {
     xbj = PaAlgo::xbj (inMu_TL, outMu_TL); //xbj = Q2/(2*q*targ_TL);
 
     // Current kinematic cuts are wide - they will be tightened after the kinematically constrained fit is applied 
-    if (Q2 < 0.8 || Q2 > 10) continue;
-    eventFlags.Q2_flag = (Q2 > 0.8 && Q2 < 10);
+    if (Q2 < 1 || Q2 > 10) continue;
+    eventFlags.Q2_flag = (Q2 > 1 && Q2 < 10);
     if (eventFlags.Q2_flag && !cutCounts["Cut 20"].second) {
       cutCounts["Cut 20"].first++;
       cutCounts["Cut 20"].second = true;
@@ -645,28 +645,26 @@ void UserEvent97(PaEvent & e) {
 
     //*******************************************
     // Kinematic variables ... (2/2)
-    t = (q - gamma_TLs[0]).M2();
-    E_miss = nu - gamma_TLs[0].E() + t/(2 * M_p);
+    t       = (q - gamma_TLs[0]).M2();
+    E_miss  = nu - gamma_TLs[0].E() + t/(2 * M_p); // Missing energy (assuming proton)
+    M2_miss = (2 * M_p * (nu - gamma_TLs[0].E())) + (M_p * M_p) + t; // Missing mass squared (assuming proton)
 
-    // Check that exclusive cut conditions are satisfied before checking camera
-    // TODO: add exclusiveCl_flag check here as well 
+    //*******************************************
+    // Store info about proton using Camera and calculate exclusivity variables (used for kinematic fit)
+    //vector <CameraProton> protons = cam_inst->GetGoodCandidates(v);
+
+    //*******************************************
+    // Check that exclusive cut conditions are satisfied after checking camera
+    // add additional flags here 
     if (eventFlags.singleTrack_flag && eventFlags.singleCl_flag) {eventFlags.exclEvent_flag = true;}
 
     //*******************************************
     printDebug("      ");
     printDebug("*** Run: " + std::to_string(Run) + ", spill: " + std::to_string(Spill) + ", event: " + std::to_string(EvtInSpill) + " ***");
-    printDebug("    Event Count: 1: " + std::to_string(cutCounts["Cut 01"].first) + ", 2: " + std::to_string(cutCounts["Cut 02"].first) + 
-        ", 3: " + std::to_string(cutCounts["Cut 03"].first) + ", 4: " + std::to_string(cutCounts["Cut 04"].first) + 
-        ", 5: " + std::to_string(cutCounts["Cut 05"].first) + ", 6: " + std::to_string(cutCounts["Cut 06"].first) +
-        ", 7: " + std::to_string(cutCounts["Cut 07"].first) + ", 8: " + std::to_string(cutCounts["Cut 08"].first) +
-        ", 9: " + std::to_string(cutCounts["Cut 09"].first) + ", 10: " + std::to_string(cutCounts["Cut 10"].first) +
-        ", 11: " + std::to_string(cutCounts["Cut 11"].first) + ", 12: " + std::to_string(cutCounts["Cut 12"].first) +
-        ", 13: " + std::to_string(cutCounts["Cut 13"].first) + ", 14: " + std::to_string(cutCounts["Cut 14"].first) +
-        ", 15: " + std::to_string(cutCounts["Cut 15"].first) + ", 16: " + std::to_string(cutCounts["Cut 16"].first) +
-        ", 17: " + std::to_string(cutCounts["Cut 17"].first) + ", 18: " + std::to_string(cutCounts["Cut 18"].first) +
-        ", 19: " + std::to_string(cutCounts["Cut 19"].first) + ", 20: " + std::to_string(cutCounts["Cut 20"].first) +
-        ", 21: " + std::to_string(cutCounts["Cut 21"].first) + ", 22: " + std::to_string(cutCounts["Cut 22"].first) +
-        ", 23: " + std::to_string(cutCounts["Cut 23"].first) + ", 24: " + std::to_string(cutCounts["Cut 24"].first));
+    printDebug("    Vertex: (" + std::to_string(Xprim) + ", " + std::to_string(Yprim) + ", " + std::to_string(Zprim) + ")");
+    printDebug("    mu: P: " + std::to_string(inMu_mom) + " GeV/c, Charge: " + std::to_string(beam.Q()));
+    printDebug("    mu': P: " + std::to_string(outMu_mom) + " GeV/c, Charge: " + std::to_string(outMu.Q()));
+    printDebug("    Kinematics: Q2: " + std::to_string(Q2) +  " GeV2, y: " + std::to_string(y) + ", W2: " + std::to_string(W2) + " GeV2, x: " + std::to_string(xbj));
 
     //*******************************************
     // Fill the tree/histograms with the extracted event information 
@@ -718,6 +716,7 @@ void UserEvent97(PaEvent & e) {
     h97_Q2xbj->Fill(xbj,Q2);
 
     h97_E_miss->Fill(E_miss); 
+    h97_M2_miss->Fill(M2_miss);
 
   } // end of loop over vertices
 
