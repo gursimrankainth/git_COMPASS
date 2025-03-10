@@ -36,8 +36,8 @@ int main() {
         // Local paths
         filePairs = {
             {"/Users/gursimran/cern/u97_DVCS.cc", "/Users/gursimran/cern/phastPackages/git_COMPASS/u97_DVCS.cc"},
-            {"/Users/gursimran/cern/phastPackages/git_COMPASS/u970_DVCS.cc", "/Users/gursimran/cern/phastPackages/git_COMPASS/u970_DVCS.cc"},
-            {"/Users/gursimran/cern/phastPackages/git_COMPASS/UConn_Tools.h", "/Users/gursimran/cern/phastPackages/git_COMPASS/UConn_Tools.h"}
+            {"/Users/gursimran/cern/phast.8.032/user/u970_DVCS.cc", "/Users/gursimran/cern/phastPackages/git_COMPASS/u970_DVCS.cc"},
+            {"/Users/gursimran/cern/phast.8.032/user/UConn_Tools.h", "/Users/gursimran/cern/phastPackages/git_COMPASS/UConn_Tools.h"}
         };
     } else if (mode == 'r') {
         // Remote server paths

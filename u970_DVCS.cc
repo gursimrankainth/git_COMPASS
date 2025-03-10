@@ -103,7 +103,6 @@ void UserEvent970(PaEvent & e) { // begin event loop
     static double inMu_p;  // Magnitude of the beam muon momentum 
     static double inMu_E;  // Magnitude of the beam muon energy
     
-    static int    Hodo_i_omu;
     static double outMu_pz; // Z component of the scattered muon momentum 
     static double outMu_py; // Y component of the scattered muon momentum
     static double outMu_px; // X component of the scattered muon momentum 
@@ -124,20 +123,16 @@ void UserEvent970(PaEvent & e) { // begin event loop
     static double M2_miss; 
 
     // Event selection flags
-		static bool TiS_flag = false;  
+		bool TiS_flag  = false;  
+    bool trig_flag = false;
+
     struct EventFlags {
         //DIS cuts
-        bool flux_flag       = false;
-        bool hodo_flag       = false;
-        bool outMuTrack_flag = false;
-        bool vertex_flag     = false;
-        bool realoutMu_flag  = false;
-        bool charge_flag     = false;
-        bool zFirstLast_flag = false;
-        bool trig_flag       = false;
-        bool Q2_flag         = false;
-        bool y_flag          = false;
-        bool DIS_flag        = false; // true if all DIS cuts have been applied 
+        bool flux_flag  = false; 
+        bool outMu_flag = false;
+        bool Q2_flag    = false;
+        bool y_flag     = false;
+        bool DIS_flag   = false; // true if all DIS cuts have been applied 
         //Exclusive cuts 
         bool singleTrack_flag = false;
         bool checkCls_flag    = false; // true if all found clusters have a track, and pass the timing and ECal energy cuts 
@@ -161,12 +156,13 @@ void UserEvent970(PaEvent & e) { // begin event loop
 		XCHECK_REGISTER_FLAG(Event_CrossCells, "No. of events where the beam crosses full target length");
 		XCHECK_REGISTER_FLAG(Event_Meantime, "No. of events where beam track meantime is within acceptable flux requirements");
 		XCHECK_REGISTER_FLAG(Event_TiS, "No. of events where time in spill is within acceptable flux requirements");
-    XCHECK_REGISTER_FLAG(Event_Hodo, "No. of events where scattered muon passes Hodoscope check");
+    XCHECK_REGISTER_FLAG(Event_Flux, "No. of events where all flux requirements are satisfied");
     XCHECK_REGISTER_FLAG(Event_InTarget, "No. of events where scattered muon vertex is in target");
     XCHECK_REGISTER_FLAG(Event_Trigger, "No. of events with MT, LT, OT or LAST physics triggers");
-    XCHECK_REGISTER_FLAG(Event_RealoutMu, "No. of events where the scattered muon actually exists");
+    XCHECK_REGISTER_FLAG(Event_Hodo, "No. of events where scattered muon passes Hodoscope check");
     XCHECK_REGISTER_FLAG(Event_Charge, "No. of events where scattered muon has the same charge as the beam");
     XCHECK_REGISTER_FLAG(Event_ZFirstLast, "No. of events where first and last scattered muon z coord. are measured before and after SM1");
+    XCHECK_REGISTER_FLAG(Event_outMu, "No. of events where scattered muon passes all checks");
     XCHECK_REGISTER_FLAG(Event_Q2, "No. of events where 1 < Q2 < 10");
     XCHECK_REGISTER_FLAG(Event_Y, "No. of events where 0.05 < y < 0.9");
     XCHECK_REGISTER_FLAG(Event_TrackMult, "No. of events where primary vertex only has one outgoing track");
@@ -226,7 +222,7 @@ void UserEvent970(PaEvent & e) { // begin event loop
         tree->Branch("inMu_py", &inMu_py, "inMu_py/D");
         tree->Branch("inMu_px", &inMu_px, "inMu_px/D");
         tree->Branch("inMu_E",  &inMu_E,  "inMu_E/D");
-
+ 
         tree->Branch("outMu_pz", &outMu_pz, "outMu_pz/D");
         tree->Branch("outMu_py", &outMu_py, "outMu_py/D");
         tree->Branch("outMu_px", &outMu_px, "outMu_px/D");
@@ -268,19 +264,19 @@ void UserEvent970(PaEvent & e) { // begin event loop
     std::string trigCheck = ""; // empty string to store trigger information for debugging 
     if (trig_mask & MT) {
         trigCheck += "MT ";
-        eventFlags.trig_flag = true;
+        trig_flag = true;
     }
     if (trig_mask & LT) {
         trigCheck += "LT ";
-        eventFlags.trig_flag = true;
+        trig_flag = true;
     }
     if (trig_mask & OT) {
         trigCheck += "OT ";
-        eventFlags.trig_flag = true;
+        trig_flag = true;
     }
     if (trig_mask & LAST) {
         trigCheck += "LAST ";
-        eventFlags.trig_flag = true;
+        trig_flag = true;
     }
 
     //*******************************************
@@ -306,7 +302,6 @@ void UserEvent970(PaEvent & e) { // begin event loop
     
     // Loop over reconstructed vertices in the event 
 		for (int iv = 0; iv < e.NVertex(); iv++) { // begin loop over vertices
-
 			//******************************************* 
 			// Store info about primary vertex (if found) 
 			const PaVertex & v = e.vVertex(iv);
@@ -319,19 +314,33 @@ void UserEvent970(PaEvent & e) { // begin event loop
 
 			//*******************************************
     	// Store info about incoming muon beam (inMu)
-			static BeamFluxParams beamParams; // Create an instance of BeamFluxParams
-			eventFlags.flux_flag = beamFluxCheck(e, v, iv, Run, TiS_flag, beamParams);
-			if (!eventFlags.flux_flag) continue; 
-			XCHECK_COUNT_FLAG(Event_TiS, "No. of events where time in spill is within acceptable flux requirements");
+      static PaParticle beam; 
+      static PaTrack beam_track; 
+      static PaTPar Par_beam;
 
+			static BeamFluxParams beamParams; // Create an instance of BeamFluxParams
+			eventFlags.flux_flag = beamFluxCheck(e, v, iv, Run, TiS_flag, beamParams, beam, beam_track, Par_beam);
+			if (!eventFlags.flux_flag) continue; 
+      XCHECK_COUNT_FLAG(Event_Flux, "No. of events where all flux requirements are satisfied"); 
 
       //*******************************************
-      printDebug("      ");
-      printDebug("*** Run: " + std::to_string(Run) + ", spill: " + std::to_string(Spill) + ", event: " + std::to_string(Evt) + " ***");
-      printDebug("    Vertex: (" + std::to_string(Xprim) + ", " + std::to_string(Yprim) + ", " + std::to_string(Zprim) + ")");
-      printDebug("    mu: P: " + std::to_string(inMu_mom) + " GeV/c, Charge: " + std::to_string(beam.Q()));
-      printDebug("    mu': P: " + std::to_string(outMu_mom) + " GeV/c, Charge: " + std::to_string(outMu.Q()));
-      printDebug("    Kinematics: Q2: " + std::to_string(Q2) +  " GeV2, y: " + std::to_string(y) + ", W2: " + std::to_string(W2) + " GeV2, x: " + std::to_string(xbj));
+      // Store info about scattered muon (outMu)
+      static PaParticle outMu; 
+      static PaTrack outMu_track; 
+      static PaTPar Par_outMu;
+
+      static OutMuParams outMuParams; // Create an instance of OutMuParams 
+      eventFlags.outMu_flag = outMuCheck(e, v, iv, Run, beam, HodoHelper, trig_flag, outMuParams, outMu, outMu_track, Par_outMu);
+      if (!eventFlags.outMu_flag) continue; 
+      XCHECK_COUNT_FLAG(Event_outMu, "No. of events where scattered muon passes all checks");
+
+      //*******************************************
+      //printDebug("      ");
+      //printDebug("*** Run: " + std::to_string(Run) + ", spill: " + std::to_string(Spill) + ", event: " + std::to_string(Evt) + " ***");
+      //printDebug("    Vertex: (" + std::to_string(Xprim) + ", " + std::to_string(Yprim) + ", " + std::to_string(Zprim) + ")");
+      //printDebug("    mu: P: " + std::to_string(inMu_mom) + " GeV/c, Charge: " + std::to_string(beam.Q()));
+      //printDebug("    mu': P: " + std::to_string(outMu_mom) + " GeV/c, Charge: " + std::to_string(outMu.Q()));
+      //printDebug("    Kinematics: Q2: " + std::to_string(Q2) +  " GeV2, y: " + std::to_string(y) + ", W2: " + std::to_string(W2) + " GeV2, x: " + std::to_string(xbj));
 
 		} // end loop over vertices 
 
