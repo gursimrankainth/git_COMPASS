@@ -11,15 +11,17 @@
 #include "Phast.h"
 #include "PaSetup.h"
 #include "PaAlgo.h"
-#include "PaHodoHelper.h"
-//#include "Tools_Camera.hh"
 #include "PaEvent.h" 
 #include "G3part.h" 
+#include "PaHodoHelper.h"
+//#include "Tools_Camera.hh"
 
-#include "/Users/gursimran/cern/flux_files/flux_Johannes/functions/TiS_range.cc"
 #include "ecal_time_cuts.h"
-
-/// ! THERE IS AN ISSUE WITH HODOHELPER SO YOU CAN HAVE ONE INPUT FILE AT A TIME!
+#include "/Users/gursimran/cern/phastPackages/xcheck_newTiS/tis_range.cc"
+#include "/Users/gursimran/cern/phastPackages/xcheck_newTiS/tis_range.h"
+#include "/Users/gursimran/cern/phastPackages/xcheck_newTiS/xcheck_cuts_flags.cc"
+#include "/Users/gursimran/cern/phastPackages/xcheck_newTiS/xcheck_cuts_flags.h"
+//#include "/afs/cern.ch/user/g/gkainth/phastPackages/flux_files/flux_Johannes/functions/TiS_range.cc"
 
 // ************************************************************************** //
 // UserEvent for preselecting exclusive photon events	(DVCS)			            //
@@ -30,9 +32,9 @@
 extern "C" float prob_(float&, int&);
 
 // Global flag for verbose mode 
-bool verbose = false; // Set to true for verbose output, false to suppress
+bool verbose_mode = false; // Set to true for verbose output, false to suppress
 void printDebug(const std::string &message, bool forcePrint = false) {
-    if (verbose || forcePrint) {
+    if (verbose_mode || forcePrint) {
         std::cout << message << std::endl;
     }
 }
@@ -41,7 +43,8 @@ void printDebug(const std::string &message, bool forcePrint = false) {
 void UserEvent97(PaEvent & e) {
 
   // Define constants
-  static PaHodoHelper* HodoHelper;
+  static PaHodoHelper* HodoHelper = NULL;
+  static TiSRange*     tis_range  = NULL; 
   //static PaCamera*     cam_inst;
 
   const double M_pi    = G3partMass[8]; // Pion mass 
@@ -50,8 +53,6 @@ void UserEvent97(PaEvent & e) {
   const double M_p     = G3partMass[14]; // Proton mass 
 
   // Declare all objects globally
-  static TH1F *h97_cutStats = NULL;
-
   static TH1F* h97_Zprim  = NULL; 
   static TH1F* h97_Yprim  = NULL; 
   static TH1F* h97_Xprim  = NULL; 
@@ -60,14 +61,10 @@ void UserEvent97(PaEvent & e) {
   static TH1F* h97_inMu_p  = NULL;
   static TH1F* h97_inMu_py = NULL;
   static TH1F* h97_inMu_px = NULL; 
-  //static TH1F* h97_inMu_theta = NULL;
-  //static TH1F* h97_inMu_phi   = NULL;
 
   static TH1F* h97_outMu_p  = NULL;
   static TH1F* h97_outMu_py = NULL;
   static TH1F* h97_outMu_px = NULL; 
-  //static TH1F* h97_outMu_theta = NULL;
-  //static TH1F* h97_outMu_phi   = NULL;
 
   static TH1F* h97_y     = NULL;
   static TH1F* h97_Q2    = NULL;
@@ -91,18 +88,17 @@ void UserEvent97(PaEvent & e) {
   // - add in Ntuple definition below 
   // and do not forget to fill the variable in the code
   //
-  static int    Run;         // run number
-  static int    LastRun = -1;     // store the previous run number (used to reintialize Hodohelper if there are multiple input files)
-  static int    Evt;         // event number - unique evt number (based on run, spill and evt num in spill) 
-  static int    Year;        // year data was taken 
-  static int    EvtInSpill;  // event number in spill 
-  static int    Spill;       // spill number
-  static double TimeInSpill; // time in spill 
-  static float  Zprim;       // Z coordinate of primary vertex (10000 if not found)
-  static float  Yprim;       // Y coordinate of primary vertex (10000 if not found)
-  static float  Xprim;       // X coordinate of primary vertex (10000 if not found)
-  static int    Nprim;       // Number of tracks in primary vertex (-1 in fot found)
-  static float  Ch2prim;     // Chi2 of primary vertex
+  static unsigned long long int Evt; // event number - unique evt number (based on run, spill and evt num in spill) 
+  static int    Run;          // run number
+  static int    LastRun = -1; // store the previous run number (used to reintialize Hodohelper, tis_range if there are multiple runs)
+  static int    Year;         // year data was taken 
+  static int    EvtInSpill;   // event number in spill 
+  static int    Spill;        // spill number
+  static double TimeInSpill;  // time in spill 
+  static float  Zprim;        // Z coordinate of primary vertex (10000 if not found)
+  static float  Yprim;        // Y coordinate of primary vertex (10000 if not found)
+  static float  Xprim;        // X coordinate of primary vertex (10000 if not found)
+  static int    Nprim;        // Number of tracks in primary vertex (-1 in fot found)
   static int    trig_mask;
 
   static double inMu_pz; // Z component of the beam muon momentum 
@@ -110,8 +106,6 @@ void UserEvent97(PaEvent & e) {
   static double inMu_px; // X component of the beam muon momentum
   static double inMu_p;  // Magnitude of the beam muon momentum 
   static double inMu_E;  // Magnitude of the beam muon energy
-  //static double inMu_theta; // Theta angle of beam track 
-  //static double inMu_phi; // Phi angle of beam track 
   
   static int    Hodo_i_omu;
   static double outMu_pz; // Z component of the scattered muon momentum 
@@ -119,8 +113,6 @@ void UserEvent97(PaEvent & e) {
   static double outMu_px; // X component of the scattered muon momentum 
   static double outMu_p;  // Magnitude of the scattered muon momentum 
   static double outMu_E;  // Magnitude of the scattered muon energy
-  //static double outMu_theta; // Theta angle of scattered muon track 
-  //static double outMu_phi; // Phi angle of scattered muon track 
 
   static double y;   // fractional energy loss of the incoming lepton 
   static double nu;  // energy of the virtual photon 
@@ -138,16 +130,17 @@ void UserEvent97(PaEvent & e) {
   // Event selection flags
   struct EventFlags {
     //DIS cuts
-    bool flux_flag = false;
-    bool hodo_flag = false;
+    bool flux_flag       = false;
+    bool hodo_flag       = false;
     bool outMuTrack_flag = false;
-    bool vertex_flag = false;
-    bool charge_flag = false;
+    bool vertex_flag     = false;
+    bool realoutMu_flag  = false;
+    bool charge_flag     = false;
     bool zFirstLast_flag = false;
-    bool trig_flag = false;
-    bool Q2_flag = false;
-    bool y_flag = false;
-    bool DIS_flag = false; // true if all DIS cuts have been applied 
+    bool trig_flag       = false;
+    bool Q2_flag         = false;
+    bool y_flag          = false;
+    bool DIS_flag        = false; // true if all DIS cuts have been applied 
     //Exclusive cuts 
     bool singleTrack_flag = false;
     bool checkCls_flag    = false; // true if all found clusters have a track, and pass the timing and ECal energy cuts 
@@ -157,54 +150,49 @@ void UserEvent97(PaEvent & e) {
   };
 
   struct FluxFlags {
-    bool allVtx_flag = false;
-    bool pVtx_flag = false;
-    bool inMu_flag = false;
-    bool inMuTrack_flag = false;
-    bool inMuPar_flag = false;
+    bool allVtx_flag     = false;
+    bool pVtx_flag       = false;
+    bool inMu_flag       = false;
+    bool inMuTrack_flag  = false;
+    bool inMuPar_flag    = false;
     bool passTarget_flag = false;
-    bool zFirst_flag = false;
-    bool BMS_flag = false;
-    bool FI_flag = false;
-    bool SI_flag = false;
-    bool momRange_flag = false;
-    bool momErr_flag = false;
-    bool meantime_flag = false;
-    bool TiS_flag = false;
+    bool zFirst_flag     = false;
+    bool BMS_flag        = false;
+    bool FI_flag         = false;
+    bool SI_flag         = false;
+    bool momRange_flag   = false;
+    bool momErr_flag     = false;
+    bool meantime_flag   = false;
+    bool TiS_flag        = false;
   };
 
-  EventFlags   eventFlags;   // Create an instance of event flags
-  FluxFlags    fluxFlags;    // Create an instance of event flags
+  EventFlags eventFlags;   // Create an instance of event flags
+  FluxFlags  fluxFlags;    // Create an instance of event flags
 
-  // Selection statics (how many events remain after each cut)
-  static std::map<std::string, std::pair<int, bool>> cutCounts = {
-    {"Cut 00", {0, false}},  
-    {"Cut 01", {0, false}},   
-    {"Cut 02", {0, false}}, 
-    {"Cut 03", {0, false}},   
-    {"Cut 04", {0, false}},   
-    {"Cut 05", {0, false}},     
-    {"Cut 06", {0, false}},  
-    {"Cut 07", {0, false}}, 
-    {"Cut 08", {0, false}}, 
-    {"Cut 09", {0, false}}, 
-    {"Cut 10", {0, false}}, 
-    {"Cut 11", {0, false}},  
-    {"Cut 12", {0, false}},  
-    {"Cut 13", {0, false}},
-    {"Cut 14", {0, false}},
-    {"Cut 15", {0, false}},
-    {"Cut 16", {0, false}},
-    {"Cut 17", {0, false}},
-    {"Cut 18", {0, false}},
-    {"Cut 19", {0, false}},
-    {"Cut 20", {0, false}},
-    {"Cut 21", {0, false}},
-    {"Cut 22", {0, false}},
-    {"Cut 23", {0, false}},
-    {"Cut 24", {0, false}},   
-    {"Cut 25", {0, false}},
-  };
+  // Register XCheck flags to track cut statistics 
+  statis bool xcheck_mode = false; 
+  XCHECK_REGISTER_FLAG(Event_AllEvents, "Total no. of events processed by PHAST user script");
+  XCHECK_REGISTER_FLAG(Event_PVtx, "No. of events with a primary vertex");
+  XCHECK_REGISTER_FLAG(Event_BeamTrack, "No. of events where beam has a track with parameters");
+  XCHECK_REGISTER_FLAG(Event_ZFirst, "No. of events where beam was first measured before the target");
+  XCHECK_REGISTER_FLAG(Event_BeamMom, "No. of events where beam momentum falls within acceptable range");
+  XCHECK_REGISTER_FLAG(Event_BeamMomErr, "No. of events where beam momentum error falls within acceptable range");
+  XCHECK_REGISTER_FLAG(Event_BMS, "No. of events where beam is detected by BMS");
+  XCHECK_REGISTER_FLAG(Event_FI, "No. of events where beam is detected by SCIFI");
+  XCHECK_REGISTER_FLAG(Event_SI, "No. of events where beam is detected by SI");
+  XCHECK_REGISTER_FLAG(Event_CrossCells, "No. of events where the beam crosses full target length");
+  XCHECK_REGISTER_FLAG(Event_Meantime, "No. of events where beam track meantime is within acceptable flux requirements");
+  XCHECK_REGISTER_FLAG(Event_TiS, "No. of events where time in spill is within acceptable flux requirements");
+  XCHECK_REGISTER_FLAG(Event_Hodo, "No. of events where scattered muon passes Hodoscope check");
+  XCHECK_REGISTER_FLAG(Event_InTarget, "No. of events where scattered muon vertex is in target");
+  XCHECK_REGISTER_FLAG(Event_Trigger, "No. of events with MT, LT, OT or LAST physics triggers");
+  XCHECK_REGISTER_FLAG(Event_RealoutMu, "No. of events where the scattered muon actually exists");
+  XCHECK_REGISTER_FLAG(Event_Charge, "No. of events where scattered muon has the same charge as the beam");
+  XCHECK_REGISTER_FLAG(Event_ZFirstLast, "No. of events where first and last scattered muon z coord. are measured before and after SM1");
+  XCHECK_REGISTER_FLAG(Event_Q2, "No. of events where 1 < Q2 < 10");
+  XCHECK_REGISTER_FLAG(Event_Y, "No. of events where 0.05 < y < 0.9");
+  XCHECK_REGISTER_FLAG(Event_TrackMult, "No. of events where primary vertex only has one outgoing track");
+  XCHECK_REGISTER_FLAG(Event_ClustMult, "No. of events where there is only a single neutral clsuter in the ECals");
 
   //*****************************************************************************
 
@@ -213,9 +201,6 @@ void UserEvent97(PaEvent & e) {
     Phast::Ref().HistFileDir("UserEvent97");
    
     // 1D and 2D
-    int nCuts = cutCounts.size();
-    h97_cutStats = new TH1F("h97_cutStats", "Event Cuts Breakdown; Cut; Number of Events Removed", nCuts, 0, nCuts);
-
     h97_Zprim  = new TH1F("h97_Zprim", "Primary Vertex Z (cm); Z [cm]; Events", 100, -250, 250);
     h97_Yprim  = new TH1F("h97_Yprim", "Primary Vertex Y (cm); Y [cm]; Events", 100, -3, 3);
     h97_Xprim  = new TH1F("h97_Xprim", "Primary Vertex X (cm); X [cm]; Events", 100, -3, 3);
@@ -224,24 +209,20 @@ void UserEvent97(PaEvent & e) {
     h97_inMu_p  = new TH1F("h97_inMu_p", "P Incoming Muon (GeV/c); P [GeV/c]; Events", 100, 0, 200);
     h97_inMu_py = new TH1F("h97_inMu_py", "Py Incoming Muon (GeV/c); Py [GeV/c]; Events", 100, 0, 10);
     h97_inMu_px = new TH1F("h97_inMu_px", "Px Incoming Muon (GeV/c); Px [GeV/c]; Events", 100, 0, 10);
-    //h97_inMu_theta = new TH1F("h97_inMu_theta", "Theta Incoming Muon (rad); Theta [rad]; Events", 100, 0, 0.1);
-    //h97_inMu_phi   = new TH1F("h97_inMu_phi", "Phi Incoming Muon (rad); Phi [rad]; Events", 100, -M_PI, M_PI);
 
     h97_outMu_p  = new TH1F("h97_outMu_p", "P Scattered Muon (GeV/c); P [GeV/c]; Events", 100, 0, 200);
     h97_outMu_py = new TH1F("h97_outMu_py", "Py Scattered Muon (GeV/c); Py [GeV/c]; Events", 100, 0, 10);
     h97_outMu_px = new TH1F("h97_outMu_px", "Px Scattered Muon (GeV/c); Px [GeV/c]; Events", 100, 0, 10);
-    //h97_outMu_theta = new TH1F("h97_outMu_theta", "Theta Scattered Muon (rad); Theta [rad]; Events", 100, 0, 0.1);
-    //h97_outMu_phi   = new TH1F("h97_outMu_phi", "Phi Scattered Muon (rad); Phi [rad]; Events", 100, -M_PI, M_PI);
 
     h97_y     = new TH1F("h97_y", "Fractional Energy Loss of Incoming Muon (y); y; Events", 100, 0, 1);
     h97_Q2    = new TH1F("h97_Q2", "Four-momentum Transfer Squared (Q^{2}); Q^{2} [GeV^{2}]; Events", 100, 0, 10);
     h97_W2    = new TH1F("h97_W2", "Effective Mass of final state hadrons Squared (W^{2}); W^{2} [GeV^{2}]; Events", 100, 0, 350);
     h97_Q2xbj = new TH2F("h97_Q2xbj", "Kinematic Coverage of Dataset; x_{bj}; Q^{2} [GeV^{2}]", 100, 0, 1, 100, 0, 100);
 
-    const int nBins = 100;       // Number of bins
-    double xMin = 1e-3;          // Minimum x value (avoid 0 because log(0) is undefined)
-    double xMax = 2.0;           // Maximum x value
-    double binEdges[nBins + 1];  // Bin edges array
+    const int nBins = 100;      // Number of bins
+    double xMin = 1e-3;         // Minimum x value (avoid 0 because log(0) is undefined)
+    double xMax = 2.0;          // Maximum x value
+    double binEdges[nBins + 1]; // Bin edges array
     for (int i = 0; i <= nBins; ++i) {
       binEdges[i] = xMin * pow(xMax / xMin, double(i) / nBins);
     }
@@ -263,8 +244,6 @@ void UserEvent97(PaEvent & e) {
     tree->Branch("Zprim",   &Zprim,   "Zprim/F");
     tree->Branch("Yprim",   &Yprim,   "Yprim/F");
     tree->Branch("Xprim",   &Xprim,   "Xprim/F");
-    tree->Branch("Nprim",   &Nprim,   "Nprim/I");
-    tree->Branch("Ch2prim", &Ch2prim, "Chi2prim/F");
 
     tree->Branch("inMu_pz", &inMu_pz, "inMu_pz/D");
     tree->Branch("inMu_py", &inMu_py, "inMu_py/D");
@@ -283,7 +262,8 @@ void UserEvent97(PaEvent & e) {
     tree->Branch("xbj", &xbj, "xbj/D");
     tree->Branch("t",   &t,   "t/D");
 
-    tree->Branch("E_miss", &E_miss, "E_miss/D");
+    tree->Branch("E_miss",  &E_miss,  "E_miss/D");
+    tree->Branch("M2_miss", &M2_miss, "M2_miss/D");
 
     first=false;
   } // end of histogram booking
@@ -321,158 +301,108 @@ void UserEvent97(PaEvent & e) {
     trigCheck += "OT ";
     eventFlags.trig_flag = true;
   }
-  //if (trig_mask & LAST) {
-  //  trigCheck += "LAST ";
-  //  eventFlags.trig_flag = true;
-  //}
+  if (trig_mask & LAST) {
+    trigCheck += "LAST ";
+    eventFlags.trig_flag = true;
+  }
 
   //*******************************************
-  Run = e.RunNum();
-  if (Run != LastRun) { // Reinitialize HodoHelper and Set_TiSrange only if the run number changes 
+  // Initialize variables and check time in spill (time in spill cut is applied later not here)
+  Run         = e.RunNum();
+  Evt         = e.UniqueEvNum();
+  Year        = e.Year();
+  EvtInSpill  = e.EvInSpill(); 
+  Spill       = e.SpillNum(); 
+  TimeInSpill = e.TimeInSpill(); 
+
+  if (Run != LastRun) { // Reinitialize HodoHelper and tis_range only if the run number changes 
       HodoHelper = & PaHodoHelper::Init("", true);  
-      // Set_TiSrange("PATH_TO_FLUX_FILES", runMin, runMax);
-      Set_TiSrange("/Users/gursimran/cern/flux_files/flux_Johannes/2016/flux_files", Run, Run);
+      tis_range  = new TiSRange("/Users/gursimran/cern/phastPackages/flux_files/flux_Johannes/2016/flux_files");
+      //Set_TiSrange("/afs/cern.ch/user/g/gkainth/phastPackages/flux_files/flux_Johannes/2016/flux_files", Run, Run);
       LastRun = Run;  // Update LastRun to the current run number
   }
 
-  Evt        = e.UniqueEvNum();
-  Year       = e.Year();
-  EvtInSpill = e.EvInSpill(); 
-  Spill      = e.SpillNum(); 
-
-  // Time in spill check 
-  TimeInSpill  = e.TimeInSpill(); // check the time in spill 
-  fluxFlags.TiS_flag = Check_TiS_window(Run,Spill,TimeInSpill);
+  fluxFlags.TiS_flag = tis_range->CheckWindow(Run, Spill, TimeInSpill); // check the time in spill 
 
   //*******************************************  
-  // Reset the "already counted" flags for each event 
-  for (auto& cut : cutCounts) {
-    cut.second.second = false; 
-  }
-  cutCounts["Cut 00"].first++;
+  XCHECK_COUNT_FLAG(Event_AllEvents, "Total no. of events processed by PHAST user script"); 
 
   // Loop over reconstructed vertices in the event 
   //std::cout << std::endl << "DEBUG :: " << Evt << ", " << e.NVertex() << std::endl;
   for (int iv = 0; iv < e.NVertex(); iv++) { // begin loop over vertices
-
   fluxFlags.allVtx_flag = true;
-  if (fluxFlags.allVtx_flag && !cutCounts["Cut 01"].second) {
-    cutCounts["Cut 01"].first++;
-    cutCounts["Cut 01"].second = true;
-  } 
-
     //******************************************* 
     // Store info about primary vertex (if found) 
     const PaVertex & v = e.vVertex(iv);
     if (!v.IsPrimary()) continue;
+    //std::cout << std::endl << "DEBUG :: " << Evt << std::endl;
     fluxFlags.pVtx_flag = v.IsPrimary();
-    if (fluxFlags.pVtx_flag && !cutCounts["Cut 02"].second) {
-      cutCounts["Cut 02"].first++;
-      cutCounts["Cut 02"].second = true;
-    }
+    XCHECK_COUNT_FLAG(Event_PVtx, "No. of events with a primary vertex");
     Zprim   = v.Pos(2);
     Yprim   = v.Pos(1);
     Xprim   = v.Pos(0);
-    Ch2prim = v.Chi2();
     Nprim   = v.NOutParticles(); // number of tracks in vertex 
 
     //*******************************************
     // Store info about incoming muon beam (inMu)
-    int muBeam = v.InParticle(); 
-    if (muBeam == -1) continue; // there is incoming particle associated with the primary vertex
-    fluxFlags.inMu_flag = (muBeam != -1);  
-    if (fluxFlags.inMu_flag && !cutCounts["Cut 03"].second) {
-      cutCounts["Cut 03"].first++;
-      cutCounts["Cut 03"].second = true;
-    }
+    int i_beam = v.InParticle(); 
+    if (i_beam == -1) continue; // there is incoming particle associated with the primary vertex
+    fluxFlags.inMu_flag = (i_beam != -1);  
 
-    const PaParticle & beam = e.vParticle(muBeam);
+    const PaParticle & beam = e.vParticle(i_beam);
 		int it_beam = beam.iTrack();
 		if (it_beam == -1) continue; // the incoming particle has a track associated with it
     fluxFlags.inMuTrack_flag = (it_beam != -1);
-    if (fluxFlags.inMuTrack_flag && !cutCounts["Cut 04"].second) {
-      cutCounts["Cut 04"].first++;
-      cutCounts["Cut 04"].second = true;
-    }
 
-    const PaTrack & beam_track = e.vTrack(muBeam);
+    const PaTrack & beam_track = e.vTrack(i_beam);
 		if (beam_track.NTPar() == 0) continue; // the track has parameters
     fluxFlags.inMuPar_flag = (beam_track.NTPar() != 0); 
-    if (fluxFlags.inMuPar_flag && !cutCounts["Cut 05"].second) {
-      cutCounts["Cut 05"].first++;
-      cutCounts["Cut 05"].second = true;
-    }
-
-    // PaAlgo::CrossCells(t_beam.vTPar(0),run, Rmax, Ymax, tgt_zmin, tgt_zmax, RmaxMC) - cut 4 starts here
-    if (!(PaAlgo::CrossCells(beam_track.vTPar(0),Run, 1.9, 1.2, -318.5, -78.5, 2))) continue;
-    fluxFlags.passTarget_flag = PaAlgo::CrossCells(beam_track.vTPar(0), Run, 1.9, 1.2, -318.5, -78.5, 2);
-    if (fluxFlags.passTarget_flag && !cutCounts["Cut 06"].second) {
-      cutCounts["Cut 06"].first++;
-      cutCounts["Cut 06"].second = true;
-    }
+    XCHECK_COUNT_FLAG(Event_BeamTrack, "No. of events where beam has a track with parameters");
 
     if (beam_track.ZFirst() >= -78.5) continue; // incoming muon was first measured before the target
     fluxFlags.zFirst_flag = (beam_track.ZFirst() < -78.5);
-    if (fluxFlags.zFirst_flag && !cutCounts["Cut 07"].second) {
-      cutCounts["Cut 07"].first++;
-      cutCounts["Cut 07"].second = true;
-    }
-
-    // incoming muon is detected by detectors along the beamline  
-    int nhits_FI  = beam_track.NHitsFoundInDetect("FI"); 
-		int nhits_SI  = beam_track.NHitsFoundInDetect("SI"); 
-    int nhits_BMS = beam_track.NHitsFoundInDetect("BM");
-
-    if ((nhits_FI < 2)) continue; 
-    fluxFlags.FI_flag = (nhits_FI >= 2);
-    if (fluxFlags.FI_flag && !cutCounts["Cut 08"].second) {
-      cutCounts["Cut 08"].first++;
-      cutCounts["Cut 08"].second = true;
-    }
-
-		if ((nhits_SI < 3)) continue;
-    fluxFlags.SI_flag = (nhits_SI >= 3);
-    if (fluxFlags.SI_flag && !cutCounts["Cut 09"].second) {
-      cutCounts["Cut 09"].first++;
-      cutCounts["Cut 09"].second = true;
-    }
-
-    if ((nhits_BMS < 3)) continue; 
-    fluxFlags.BMS_flag = (nhits_BMS >= 3); 
-    if (fluxFlags.BMS_flag && !cutCounts["Cut 10"].second) {
-      cutCounts["Cut 10"].first++;
-      cutCounts["Cut 10"].second = true;
-    }
+    XCHECK_COUNT_FLAG(Event_ZFirst, "No. of events where beam was first measured before the target");
 
     double inMu_mom = beam_track.vTPar(0).Mom();
     if (inMu_mom < 140.0 || inMu_mom > 180.0) continue; // momentum falls within acceptable range
     fluxFlags.momRange_flag = (inMu_mom >= 140.0 && inMu_mom <= 180.0);
-    if (fluxFlags.momRange_flag && !cutCounts["Cut 11"].second) {
-      cutCounts["Cut 11"].first++;
-      cutCounts["Cut 11"].second = true;
-    }
+    XCHECK_COUNT_FLAG(Event_BeamMom, "No. of events where beam momentum falls within acceptable range");
     
     double inMu_momErr = sqrt(beam_track.vTPar(0)(5,5))/(beam_track.vTPar(0)(5)*beam_track.vTPar(0)(5));
     if (inMu_momErr > 0.025*inMu_mom) continue; // momentum error falls within acceptable range  
     fluxFlags.momErr_flag = (inMu_momErr <= 0.025*inMu_mom);
-    if (fluxFlags.momErr_flag && !cutCounts["Cut 12"].second) {
-      cutCounts["Cut 12"].first++;
-      cutCounts["Cut 12"].second = true;
-    }
+    XCHECK_COUNT_FLAG(Event_BeamMomErr, "No. of events where beam momentum error falls within acceptable range");
+
+    // incoming muon is detected by detectors along the beamline  
+    int nhits_BMS = beam_track.NHitsFoundInDetect("BM");
+    int nhits_FI  = beam_track.NHitsFoundInDetect("FI"); 
+		int nhits_SI  = beam_track.NHitsFoundInDetect("SI"); 
+
+    if ((nhits_BMS < 3)) continue; 
+    fluxFlags.BMS_flag = (nhits_BMS >= 3); 
+    XCHECK_COUNT_FLAG(Event_BMS, "No. of events where beam is detected by BMS");
+
+    if ((nhits_FI < 2)) continue; 
+    fluxFlags.FI_flag = (nhits_FI >= 2);
+    XCHECK_COUNT_FLAG(Event_FI, "No. of events where beam is detected by SCIFI");
+
+		if ((nhits_SI < 3)) continue;
+    fluxFlags.SI_flag = (nhits_SI >= 3);
+    XCHECK_COUNT_FLAG(Event_SI, "No. of events where beam is detected by SI");
+
+    // PaAlgo::CrossCells(t_beam.vTPar(0),run, Rmax, Ymax, tgt_zmin, tgt_zmax, RmaxMC) 
+    const PaTPar & Par_beam = beam.ParInVtx(iv); // beam parameters at the vertex
+    if (!(PaAlgo::CrossCells(beam_track.vTPar(0), Run, 1.9, 1.2, -318.5, -78.5, 2.0))) continue;
+    fluxFlags.passTarget_flag = PaAlgo::CrossCells(beam_track.vTPar(0), Run, 1.9, 1.2, -318.5, -78.5, 2.0);
+    XCHECK_COUNT_FLAG(Event_CrossCells, "No. of events where the beam crosses full target length");
 
     double mean_time = beam_track.MeanTime();  
     if (std::fabs(mean_time) >= 2) continue; // track meantime for incoming muon is within flux requirements 
     fluxFlags.meantime_flag = (std::fabs(mean_time) < 2); 
-    if (fluxFlags.meantime_flag && !cutCounts["Cut 13"].second) {
-      cutCounts["Cut 13"].first++;
-      cutCounts["Cut 13"].second = true;
-     }
+    XCHECK_COUNT_FLAG(Event_Meantime, "No. of events where beam track meantime is within acceptable flux requirements");
 
     if (!fluxFlags.TiS_flag) continue; 
-    if (fluxFlags.TiS_flag && !cutCounts["Cut 14"].second) {
-      cutCounts["Cut 14"].first++;
-      cutCounts["Cut 14"].second = true;
-    }
+    XCHECK_COUNT_FLAG(Event_TiS, "No. of events where time in spill is within acceptable flux requirements");
 
     // Check if all requirements for proper beam flux are fulfilled
     if (fluxFlags.allVtx_flag && fluxFlags.pVtx_flag && fluxFlags.inMu_flag &&
@@ -481,38 +411,20 @@ void UserEvent97(PaEvent & e) {
       && fluxFlags.BMS_flag && fluxFlags.momRange_flag && fluxFlags.momErr_flag &&
       fluxFlags.meantime_flag && fluxFlags.TiS_flag) {eventFlags.flux_flag = true;}
 
-    const PaTPar & Par_beam = beam.ParInVtx(iv); // beam parameters at the vertex
-    bool isInTarget = PaAlgo::InTarget(Par_beam, 'O', Run, 1.9, 1.2, -318.5, -78.5, 2);
-    if (!isInTarget) continue; // vertex is in the target  
-    eventFlags.vertex_flag = isInTarget;
-
-    if (eventFlags.vertex_flag && !cutCounts["Cut 15"].second) {
-      cutCounts["Cut 15"].first++;
-      cutCounts["Cut 15"].second = true;
-    }
-
-    //if (!eventFlags.trig_flag) continue; 
-    if (eventFlags.trig_flag && !cutCounts["Cut 16"].second) {
-      cutCounts["Cut 16"].first++;
-      cutCounts["Cut 16"].second = true;
-    }
-
     //*******************************************
     // Store info about scattered muon (outMu) 
     // HodoHelper->iMuPrim(v, checkYokeSM2, reject2muEvents, checkCanBeMuon, true, minXX0muPr, true, true) 
     int i_omu = -1; 
 		i_omu = HodoHelper->iMuPrim(v,false,false,true,false,15); // index of the scattered muon WITHOUT CHECKING IF IT PASSES the hodoscope check 
-		if (i_omu == -1) continue;
+    if (i_omu == -1) continue;
+
     int i_omu_check_hodo = HodoHelper->iMuPrim(v,false,true,true,true,15,true,true); // index for the scattered muon IF IT PASSES the hodoscope check 
     // if scattered muon passed the hodoscope use the corresponding index, if not proceed with other index 
     if (i_omu_check_hodo != -1) {
       eventFlags.hodo_flag = true;
 			i_omu = i_omu_check_hodo;
 		}
-    if (eventFlags.hodo_flag && !cutCounts["Cut 17"].second) {
-      cutCounts["Cut 17"].first++;
-      cutCounts["Cut 17"].second = true;
-    }
+    XCHECK_COUNT_FLAG(Event_Hodo, "No. of events where scattered muon passes Hodoscope check");
 
     const PaParticle & outMu = e.vParticle(i_omu);
     int outMu_itrack = outMu.iTrack();
@@ -522,19 +434,25 @@ void UserEvent97(PaEvent & e) {
     const PaTPar& Par_outMu = outMu.ParInVtx(iv); // scattered muon parameters at the vertex
     double outMu_mom = outMu_track.vTPar(0).Mom();    
 
-    if (outMu.Q() != beam.Q()) continue; // scattered muon has the same charge as the beam
-    eventFlags.charge_flag = (outMu.Q() == beam.Q());
-    if (eventFlags.charge_flag && !cutCounts["Cut 18"].second) {
-      cutCounts["Cut 18"].first++;
-      cutCounts["Cut 18"].second = true;
-    }
+    if(!(PaAlgo::InTarget(Par_outMu,'O',Run, 1.9, 1.2, -318.5, -78.5, 2.0))) continue;    
+    eventFlags.vertex_flag = PaAlgo::InTarget(Par_outMu,'O',Run, 1.9, 1.2, -318.5, -78.5, 2.0);
+    XCHECK_COUNT_FLAG(Event_InTarget, "No. of events where scattered muon vertex is in target");
+
+    if (!eventFlags.trig_flag) continue; 
+    XCHECK_COUNT_FLAG(Event_Trigger, "No. of events with MT, LT, OT or LAST physics triggers");
+
+    if (!outMu.IsMuPrim()) continue; // make sure that the scattered muon actually exists
+    eventFlags.realoutMu_flag = outMu.IsMuPrim();
+    XCHECK_COUNT_FLAG(Event_RealoutMu, "No. of events where the scattered muon actually exists");
+
+    // if outMu.Q or beam.Q return -777 it means the assocaited track was reconstructed in a field free region (charge is unkown)
+    if (outMu.Q() != beam.Q() || outMu.Q() == -777 || beam.Q() == -777) continue; // scattered muon has the same charge as the beam
+    eventFlags.charge_flag = (outMu.Q() == beam.Q() && outMu.Q() != -777 && beam.Q()!= -777);
+    XCHECK_COUNT_FLAG(Event_Charge, "No. of events where scattered muon has the same charge as the beam");
     
     if (!(outMu_track.ZFirst() < 350 && outMu_track.ZLast() > 350)) continue; // first and last z coordinates are measured before and after SM1
     eventFlags.zFirstLast_flag = (outMu_track.ZFirst() < 350 && outMu_track.ZLast() > 350);
-    if (eventFlags.zFirstLast_flag && !cutCounts["Cut 19"].second) {
-      cutCounts["Cut 19"].first++;
-      cutCounts["Cut 19"].second = true;
-    }
+    XCHECK_COUNT_FLAG(Event_ZFirstLast, "No. of events where first and last scattered muon z coord. are measured before and after SM1");
 
     //*******************************************
     // Kinematic variables ... (1/2)
@@ -552,17 +470,11 @@ void UserEvent97(PaEvent & e) {
     // Current kinematic cuts are wide - they will be tightened after the kinematically constrained fit is applied 
     if (Q2 < 1 || Q2 > 10) continue;
     eventFlags.Q2_flag = (Q2 > 1 && Q2 < 10);
-    if (eventFlags.Q2_flag && !cutCounts["Cut 20"].second) {
-      cutCounts["Cut 20"].first++;
-      cutCounts["Cut 20"].second = true;
-    }
+    XCHECK_COUNT_FLAG(Event_Q2, "No. of events where 1 < Q2 < 10");
 
     if (y < 0.05 || y > 0.9) continue; 
     eventFlags.y_flag = (y > 0.05 && y < 0.9);
-    if (eventFlags.y_flag && !cutCounts["Cut 21"].second) {
-      cutCounts["Cut 21"].first++;
-      cutCounts["Cut 21"].second = true;
-    }
+    XCHECK_COUNT_FLAG(Event_Y, "No. of events where 0.05 < y < 0.9");
 
     // Check that DIS flags are satisfied so far 
     if (eventFlags.flux_flag && eventFlags.hodo_flag && eventFlags.vertex_flag && eventFlags.charge_flag 
@@ -574,10 +486,7 @@ void UserEvent97(PaEvent & e) {
     // Only one outgoing particle (scattered proton and photon are detected using ECals and CAMERA so will not be found here)
     if (v.NOutParticles()!= 1) continue; 
     eventFlags.singleTrack_flag = (v.NOutParticles() == 1); 
-    if (eventFlags.singleTrack_flag && !cutCounts["Cut 22"].second) {
-      cutCounts["Cut 22"].first++;
-      cutCounts["Cut 22"].second = true;
-    }
+    XCHECK_COUNT_FLAG(Event_TrackMult, "No. of events where primary vertex only has one outgoing track");
 
     if (!eventFlags.flux_flag || !eventFlags.DIS_flag) continue;
 
@@ -616,10 +525,7 @@ void UserEvent97(PaEvent & e) {
     // ! NOW CHECK THAT THERE IS ONLY ONE NEUTRAL CLUSTER !
     if(clusterCount != 1) continue;  
     if (clusterCount == 1) {eventFlags.singleCl_flag = true;} 
-    if (eventFlags.singleCl_flag && !cutCounts["Cut 23"].second) {
-      cutCounts["Cut 23"].first++;
-      cutCounts["Cut 23"].second = true;
-    }
+    XCHECK_COUNT_FLAG(Event_ClustMult, "No. of events where there is only a single neutral clsuter in the ECals");
 
     // Calculate TL vector for all photons in event (possible exclusive ones and low energy background) 
     std::vector<TLorentzVector> gamma_TLs; // Store TL vectors dynamically
@@ -660,36 +566,26 @@ void UserEvent97(PaEvent & e) {
 
     //*******************************************
     printDebug("      ");
-    printDebug("*** Run: " + std::to_string(Run) + ", spill: " + std::to_string(Spill) + ", event: " + std::to_string(EvtInSpill) + " ***");
+    printDebug("*** Run: " + std::to_string(Run) + ", spill: " + std::to_string(Spill) + ", event: " + std::to_string(Evt) + " ***");
     printDebug("    Vertex: (" + std::to_string(Xprim) + ", " + std::to_string(Yprim) + ", " + std::to_string(Zprim) + ")");
     printDebug("    mu: P: " + std::to_string(inMu_mom) + " GeV/c, Charge: " + std::to_string(beam.Q()));
     printDebug("    mu': P: " + std::to_string(outMu_mom) + " GeV/c, Charge: " + std::to_string(outMu.Q()));
     printDebug("    Kinematics: Q2: " + std::to_string(Q2) +  " GeV2, y: " + std::to_string(y) + ", W2: " + std::to_string(W2) + " GeV2, x: " + std::to_string(xbj));
 
     //*******************************************
-    // Fill the tree/histograms with the extracted event information 
-    int bin = 1;
-    for (const auto &cut : cutCounts) {
-        h97_cutStats->SetBinContent(bin, cut.second.first);  // Use cut.second.first to get the count
-        h97_cutStats->GetXaxis()->SetBinLabel(bin, cut.first.c_str());  // Set cut labels
-        bin++;
-    }
-
     inMu_pz = beam_track.vTPar(0).Pz();
     inMu_py = beam_track.vTPar(0).Py();
     inMu_px = beam_track.vTPar(0).Px();
     inMu_p  = beam_track.vTPar(0).Mom();
     inMu_E  = inMu_TL.E();
-    //inMu_theta = acos(inMu_pz/inMu_p);
-    //inMu_phi   = atan2(inMu_py, inMu_px);
+    //inMu_theta = acos(inMu_pz/inMu_p); // how to get theta 
+    //inMu_phi   = atan2(inMu_py, inMu_px); // how to get phi 
 
     outMu_pz = outMu_track.vTPar(0).Pz();
     outMu_py = outMu_track.vTPar(0).Py();
     outMu_px = outMu_track.vTPar(0).Px();
     outMu_p  = outMu_track.vTPar(0).Mom();
     outMu_E  = outMu_TL.E();
-    //outMu_theta = acos(outMu_pz/outMu_p);
-    //outMu_phi   = atan2(outMu_py, outMu_px);
 
     tree->Fill();
     h97_Zprim->Fill(Zprim); 
@@ -700,14 +596,10 @@ void UserEvent97(PaEvent & e) {
     h97_inMu_p->Fill(inMu_p);
     h97_inMu_px->Fill(inMu_px);
     h97_inMu_py->Fill(inMu_py);
-    //h97_inMu_theta->Fill(inMu_theta);
-    //h97_inMu_phi->Fill(inMu_phi);
 
     h97_outMu_p->Fill(outMu_p);
     h97_outMu_px->Fill(outMu_px);
     h97_outMu_py->Fill(outMu_py);
-    //h97_outMu_theta->Fill(outMu_theta);
-    //h97_outMu_phi->Fill(outMu_phi);
 
     h97_y->Fill(y);
     h97_Q2->Fill(Q2);
@@ -723,5 +615,9 @@ void UserEvent97(PaEvent & e) {
   //if (saveEvent_flag) {e.TagToSave();}
   e.TagToSave();
 
+}
+
+void UserJobEnd97() {
+  XCHECK_JOB_END(); // Print to output stream
 }
 
