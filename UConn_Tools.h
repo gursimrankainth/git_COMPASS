@@ -37,7 +37,7 @@
 //printDebug("test", true); // if second arguement is set to true it will print even if verbose_mode is off 
 
 // Global flag for verbose mode 
-bool verbose_mode = false; // Set to true for verbose output, false to suppress
+extern bool verbose_mode; // Set to true for verbose output, false to suppress
 
 // Define the function (to print statement even if verbose mode is off set second arguement to true)
 void printDebug(const std::string &message, bool forcePrint = false) {
@@ -219,7 +219,7 @@ bool outMuCheck(const PaEvent &e, const PaVertex &v, int vertexIndex, int Run, c
 
 	int outMu_itrack = outMu.iTrack();
 	outMu_track = e.vTrack(outMu_itrack);
-	outMu.ParInVtx(vertexIndex);
+	Par_outMu = outMu.ParInVtx(vertexIndex);
 	// Check that the first and last z coordinates are measured before and after SM1
 	if (!(outMu_track.ZFirst() < params.zfirstlast && outMu_track.ZLast() > params.zfirstlast)) {
 		return false; 

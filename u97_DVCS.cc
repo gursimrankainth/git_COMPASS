@@ -418,6 +418,16 @@ void UserEvent97(PaEvent & e) {
 		i_omu = HodoHelper->iMuPrim(v,false,false,true,false,15); // index of the scattered muon WITHOUT CHECKING IF IT PASSES the hodoscope check 
     if (i_omu == -1) continue;
 
+    const PaParticle & outMu_noHodo = e.vParticle(i_omu); 
+	  const PaTPar& Par_outMu_noHodo = outMu_noHodo.ParInVtx(iv); // scattered muon parameters at the vertex    
+
+    if(!(PaAlgo::InTarget(Par_outMu_noHodo,'O',Run, 1.9, 1.2, -318.5, -78.5, 2.0))) continue;    
+    eventFlags.vertex_flag = PaAlgo::InTarget(Par_outMu_noHodo,'O',Run, 1.9, 1.2, -318.5, -78.5, 2.0);
+    XCHECK_COUNT_FLAG(Event_InTarget, "No. of events where scattered muon vertex is in target");
+
+    if (!eventFlags.trig_flag) continue; 
+    XCHECK_COUNT_FLAG(Event_Trigger, "No. of events with MT, LT, OT or LAST physics triggers");
+
     int i_omu_check_hodo = HodoHelper->iMuPrim(v,false,true,true,true,15,true,true); // index for the scattered muon IF IT PASSES the hodoscope check 
     // if scattered muon passed the hodoscope use the corresponding index, if not proceed with other index 
     if (i_omu_check_hodo != -1) {
@@ -427,29 +437,14 @@ void UserEvent97(PaEvent & e) {
     XCHECK_COUNT_FLAG(Event_Hodo, "No. of events where scattered muon passes Hodoscope check");
 
     const PaParticle & outMu = e.vParticle(i_omu);
-    int outMu_itrack = outMu.iTrack();
-    if (outMu_itrack == -1) continue; // outgoing muon has a track associated with it 
-
-    const PaTrack & outMu_track = e.vTrack(outMu_itrack); 
-    const PaTPar& Par_outMu = outMu.ParInVtx(iv); // scattered muon parameters at the vertex
-    double outMu_mom = outMu_track.vTPar(0).Mom();    
-
-    if(!(PaAlgo::InTarget(Par_outMu,'O',Run, 1.9, 1.2, -318.5, -78.5, 2.0))) continue;    
-    eventFlags.vertex_flag = PaAlgo::InTarget(Par_outMu,'O',Run, 1.9, 1.2, -318.5, -78.5, 2.0);
-    XCHECK_COUNT_FLAG(Event_InTarget, "No. of events where scattered muon vertex is in target");
-
-    if (!eventFlags.trig_flag) continue; 
-    XCHECK_COUNT_FLAG(Event_Trigger, "No. of events with MT, LT, OT or LAST physics triggers");
-
-    if (!outMu.IsMuPrim()) continue; // make sure that the scattered muon actually exists
-    eventFlags.realoutMu_flag = outMu.IsMuPrim();
-    XCHECK_COUNT_FLAG(Event_RealoutMu, "No. of events where the scattered muon actually exists");
-
     // if outMu.Q or beam.Q return -777 it means the assocaited track was reconstructed in a field free region (charge is unkown)
     if (outMu.Q() != beam.Q() || outMu.Q() == -777 || beam.Q() == -777) continue; // scattered muon has the same charge as the beam
     eventFlags.charge_flag = (outMu.Q() == beam.Q() && outMu.Q() != -777 && beam.Q()!= -777);
     XCHECK_COUNT_FLAG(Event_Charge, "No. of events where scattered muon has the same charge as the beam");
-    
+
+    int outMu_itrack = outMu.iTrack();
+    outMu_track = e.vTrack(outMu_itrack);
+    Par_outMu = outMu.ParInVtx(vertexIndex);
     if (!(outMu_track.ZFirst() < 350 && outMu_track.ZLast() > 350)) continue; // first and last z coordinates are measured before and after SM1
     eventFlags.zFirstLast_flag = (outMu_track.ZFirst() < 350 && outMu_track.ZLast() > 350);
     XCHECK_COUNT_FLAG(Event_ZFirstLast, "No. of events where first and last scattered muon z coord. are measured before and after SM1");

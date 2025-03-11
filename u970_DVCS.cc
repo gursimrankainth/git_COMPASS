@@ -34,7 +34,7 @@
 extern "C" float prob_(float&, int&);
 
 // Global flag for verbose mode 
-extern bool verbose_mode; // Create an instance of verbose_mode
+bool verbose_mode = true; // Create an instance of verbose_mode
 
 //*****************************************************************************
 void UserEvent970(PaEvent & e) { // begin event loop
@@ -165,8 +165,11 @@ void UserEvent970(PaEvent & e) { // begin event loop
     XCHECK_REGISTER_FLAG(Event_outMu, "No. of events where scattered muon passes all checks");
     XCHECK_REGISTER_FLAG(Event_Q2, "No. of events where 1 < Q2 < 10");
     XCHECK_REGISTER_FLAG(Event_Y, "No. of events where 0.05 < y < 0.9");
-    XCHECK_REGISTER_FLAG(Event_TrackMult, "No. of events where primary vertex only has one outgoing track");
-    XCHECK_REGISTER_FLAG(Event_ClustMult, "No. of events where there is only a single neutral clsuter in the ECals");
+    XCHECK_REGISTER_FLAG(Event_SingleTrack, "No. of events where primary vertex only has one outgoing track");
+    XCHECK_REGISTER_FLAG(Event_MultTracks, "No. of events where primary vertex has multiple outgoing tracks");
+    XCHECK_REGISTER_FLAG(Event_SingleCl, "No. of events where there is only a single neutral clsuter in the ECals");
+
+    XCHECK_REGISTER_FLAG(Event_DIS, "No. of events that pass all DIS cuts"); // TBD 
 
     //*****************************************************************************
     static bool first(true);
@@ -296,7 +299,10 @@ void UserEvent970(PaEvent & e) { // begin event loop
     }
  
     TiS_flag = tis_range->CheckWindow(Run, Spill, TimeInSpill); // check the time in spill 
-
+    
+    printDebug("     ");
+    printDebug("*** Run: " + std::to_string(Run) + ", spill: " + std::to_string(Spill) + ", event: " + std::to_string(EvtInSpill) + " ***");
+    
     //*******************************************  
     XCHECK_COUNT_FLAG(Event_AllEvents, "Total no. of events processed by PHAST user script"); 
     
@@ -309,8 +315,8 @@ void UserEvent970(PaEvent & e) { // begin event loop
 			XCHECK_COUNT_FLAG(Event_PVtx, "No. of events with a primary vertex");
 			Zprim = v.Pos(2);
 			Yprim = v.Pos(1);
-			Xprim = v.Pos(0);
-			Nprim = v.NOutParticles(); // number of tracks in vertex 
+			Xprim = v.Pos(0); 
+      Nprim = v.NOutParticles(); // number of tracks in vertex
 
 			//*******************************************
     	// Store info about incoming muon beam (inMu)
@@ -321,7 +327,7 @@ void UserEvent970(PaEvent & e) { // begin event loop
 			static BeamFluxParams beamParams; // Create an instance of BeamFluxParams
 			eventFlags.flux_flag = beamFluxCheck(e, v, iv, Run, TiS_flag, beamParams, beam, beam_track, Par_beam);
 			if (!eventFlags.flux_flag) continue; 
-      XCHECK_COUNT_FLAG(Event_Flux, "No. of events where all flux requirements are satisfied"); 
+      XCHECK_COUNT_FLAG(Event_Flux, "No. of events where all flux requirements are satisfied");
 
       //*******************************************
       // Store info about scattered muon (outMu)
@@ -335,12 +341,43 @@ void UserEvent970(PaEvent & e) { // begin event loop
       XCHECK_COUNT_FLAG(Event_outMu, "No. of events where scattered muon passes all checks");
 
       //*******************************************
-      //printDebug("      ");
-      //printDebug("*** Run: " + std::to_string(Run) + ", spill: " + std::to_string(Spill) + ", event: " + std::to_string(Evt) + " ***");
-      //printDebug("    Vertex: (" + std::to_string(Xprim) + ", " + std::to_string(Yprim) + ", " + std::to_string(Zprim) + ")");
-      //printDebug("    mu: P: " + std::to_string(inMu_mom) + " GeV/c, Charge: " + std::to_string(beam.Q()));
-      //printDebug("    mu': P: " + std::to_string(outMu_mom) + " GeV/c, Charge: " + std::to_string(outMu.Q()));
-      //printDebug("    Kinematics: Q2: " + std::to_string(Q2) +  " GeV2, y: " + std::to_string(y) + ", W2: " + std::to_string(W2) + " GeV2, x: " + std::to_string(xbj));
+      // Kinematic variables ... (1/2)
+      TLorentzVector inMu_TL  = Par_beam.LzVec(M_mu); 
+      TLorentzVector outMu_TL = Par_outMu.LzVec(M_mu); 
+      //TLorentzVector targ_TL(0,0,0,M_p);
+      TLorentzVector q = (inMu_TL - outMu_TL); // four momentum of the virtual photon
+
+      Q2  = PaAlgo::Q2 (inMu_TL, outMu_TL); //Q2  = -(inMu_TL - outMu_TL).M2();
+      y   = (inMu_TL.E() - outMu_TL.E()) / inMu_TL.E();
+      nu  = (inMu_TL.E() - outMu_TL.E());
+      W2  = PaAlgo::W2 (inMu_TL, outMu_TL);
+      xbj = PaAlgo::xbj (inMu_TL, outMu_TL); //xbj = Q2/(2*q*targ_TL);
+
+      // Current kinematic cuts may be tightened after the kinematically constrained fit is applied 
+      if (Q2 < 1 || Q2 > 10) continue;
+      eventFlags.Q2_flag = (Q2 > 1 && Q2 < 10);
+      XCHECK_COUNT_FLAG(Event_Q2, "No. of events where 1 < Q2 < 10");
+
+      if (y < 0.05 || y > 0.9) continue; 
+      eventFlags.y_flag = (y > 0.05 && y < 0.9);
+      XCHECK_COUNT_FLAG(Event_Y, "No. of events where 0.05 < y < 0.9");
+
+      double inMu_mom = beam_track.vTPar(0).Mom();
+      double outMu_mom = outMu_track.vTPar(0).Mom();
+      //*******************************************
+      // Exclusive selection starts here  ... 
+      // Only one outgoing particle (scattered proton and photon are detected using ECals and CAMERA so will not be found here)
+      if (Nprim == 1) {
+        eventFlags.singleTrack_flag = true; 
+        XCHECK_COUNT_FLAG(Event_SingleTrack, "No. of events where primary vertex only has one outgoing track");
+      } 
+      else {
+        XCHECK_COUNT_FLAG(Event_MultTracks, "No. of events where primary vertex has multiple outgoing tracks");
+        printDebug("    NPrim:" + std::to_string(Nprim) + ", mu: P: " + std::to_string(inMu_mom) + " GeV/c");
+        printDebug("    NPrim:" + std::to_string(Nprim) + ", mu': P: " + std::to_string(outMu_mom) + " GeV/c");
+      }
+
+      //*******************************************
 
 		} // end loop over vertices 
 
