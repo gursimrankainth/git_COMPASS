@@ -47,69 +47,79 @@ struct EventFlags {
 
     // Default constructor to initialize flags
     EventFlags() {
-		//event flags
+		// Event flags 
         flags.push_back({false, 0, "allEvts_flag", "Total no. of events processed by PHAST user script"});
         flags.push_back({false, 0, "pVtx_flag", "No. of events with a primary vertex"});
-		// inMu flags 
+		// inMu flags
         flags.push_back({false, 0, "inMuTrack_flag", "No. of events where beam has a track with parameters"});
-		flags.push_back({false, 0, "zFirst_flag", "No. of events where beam was first measured before the target"});
-		flags.push_back({false, 0, "momRange_flag", "No. of events where beam momentum falls within flux requirements"});
+        flags.push_back({false, 0, "zFirst_flag", "No. of events where beam was first measured before the target"});
+        flags.push_back({false, 0, "momRange_flag", "No. of events where beam momentum falls within flux requirements"});
         flags.push_back({false, 0, "momErr_flag", "No. of events where beam momentum error falls within flux requirements"});
         flags.push_back({false, 0, "BMS_flag", "No. of events where beam is detected by BMS"});
         flags.push_back({false, 0, "FI_flag", "No. of events where beam is detected by SCIFI"});
         flags.push_back({false, 0, "SI_flag", "No. of events where beam is detected by SI"});
-		flags.push_back({false, 0, "crossCells_flag", "No. of events where beam crosses full target length"});
+        flags.push_back({false, 0, "crossCells_flag", "No. of events where beam crosses full target length"});
         flags.push_back({false, 0, "meantime_flag", "No. of events where beam track meantime is within flux requirements"});
         flags.push_back({false, 0, "timeInSpill_flag", "No. of events where time in spill is within flux requirements"});
-		// outMu flags
+		// outMu flags 
         flags.push_back({false, 0, "vtxInTarget_flag", "No. of events where the vertex is in the target"});
         flags.push_back({false, 0, "trigger_flag", "No. of events with MT, LT, OT or LAST physics triggers"});
         flags.push_back({false, 0, "passHodo_flag", "No. of events where scattered muon passes Hodoscope check"});
         flags.push_back({false, 0, "charge_flag", "No. of events where scattered muon has the same charge as the beam"});
         flags.push_back({false, 0, "zFirstLast_flag", "No. of events where first and last scattered muon z coord. are measured before and after SM1"});
-		// Kinematic flags
-		flags.push_back({false, 0, "Q2_flag", "No. of events where 1 < Q2 < 10"});
-		flags.push_back({false, 0, "y_flag", "No. of events where 0.05 < y < 0.9"});
+        flags.push_back({false, 0, "Q2_flag", "No. of events where 1 < Q2 < 10"});
 		// DVCS flags 
-		flags.push_back({false, 0, "singleTrack_flag", "No. of events where primary vertex only has one outgoing track"});
-		flags.push_back({false, 0, "singleCl_flag", "No. of events where there is only a single cluster in the ECals"});
-		// Rho flags
-		//Add additional flags here as needed ... 
+        flags.push_back({false, 0, "y_flag", "No. of events where 0.05 < y < 0.9"});
+        flags.push_back({false, 0, "singleTrack_flag", "No. of events where primary vertex only has one outgoing track"});
+        flags.push_back({false, 0, "singleCl_flag", "No. of events where there is only a single cluster in the ECals"});
     }
 
-    // Member function to reset only the flags (the first element of the tuple)
+    // Function to create a new flag dynamically
+    void createFlag(const std::string& flagName, const std::string& description) {
+        // Check if flag already exists
+        for (const auto& flag : flags) {
+            if (std::get<2>(flag) == flagName) return; // Don't add duplicate flags
+        }
+        flags.push_back({false, 0, flagName, description});
+    }
+
+    // Function to reset all flags
     void resetFlags() {
         for (auto& flag : flags) {
-            std::get<0>(flag) = false;  // Reset the first element in the tuple to false
+            std::get<0>(flag) = false;
         }
     }
 
-    // Member function to set a flag by name
-    void setFlagByName(const std::string& flagName, bool value) {
+    // Function to set a flag by name (creates if not found)
+    void setFlagByName(const std::string& flagName, bool value, const std::string& description = "") {
         for (auto& flag : flags) {
-            if (std::get<2>(flag) == flagName) {  // Compare flag name (the third element in the tuple)
-                std::get<0>(flag) = value;        // Set the flag (the bool part of the tuple)
-                break;                            // Exit once the flag is found and modified
+            if (std::get<2>(flag) == flagName) {
+                std::get<0>(flag) = value;
+                return;
             }
         }
+        // If not found, create a new flag dynamically
+        if (!description.empty()) {
+            createFlag(flagName, description);
+            std::get<0>(flags.back()) = value; // Set newly added flag
+        }
     }
 
-    // Member function to increment the counter for all flags that are true
+    // Function to increment counters of active flags
     void incrementCounters() {
         for (auto& flag : flags) {
-            if (std::get<0>(flag)) {  // Check if the flag (the first element) is true
-                std::get<1>(flag)++;  // Increment the counter (the second element)
+            if (std::get<0>(flag)) {
+                std::get<1>(flag)++;
             }
         }
     }
 
-	// Member function to print all flags - counts first and then their descriptions
-	void printFlags() const {
-		for (const auto& flag : flags) {
-			std::cout << std::get<1>(flag) << " : " << std::get<3>(flag) << std::endl;
-		}
-	}
-
+    // Function to print flags
+    void printFlags() const {
+        for (const auto& flag : flags) {
+            std::cout << std::get<1>(flag) << " : " << std::get<3>(flag) << std::endl;
+        }
+    }
 };
 
 

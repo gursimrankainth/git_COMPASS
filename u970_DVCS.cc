@@ -245,7 +245,11 @@ void UserEvent970(PaEvent & e) { // begin event loop
     }
 
     //*******************************************
-    // Initialize variables and check time in spill (time in spill cut is applied later not here)
+    // Initialize variables and check time in spill (time in spill cut is applied later not here)    
+    eventFlags.createFlag("Q2_flag", "No. of events where 1 < Q2 < 10");
+    eventFlags.createFlag("y_flag", "No. of events where 0.05 < y < 0.9");
+    eventFlags.createFlag("singleTrack_flag", "No. of events where primary vertex only has one outgoing track");
+    eventFlags.createFlag("singleCl_flag", "No. of events where there is only a single cluster in the ECals");
     eventFlags.resetFlags(); // Reset all event statistic counter flags to false
      
     Run         = e.RunNum();
@@ -334,6 +338,7 @@ void UserEvent970(PaEvent & e) { // begin event loop
       // Only one outgoing particle (scattered proton and photon are detected using ECals and CAMERA so will not be found here)
       if (Nprim != 1) continue; 
       eventFlags.setFlagByName("singleTrack_flag", true);
+      eventFlags.setFlagByName("test_flag", true);
 
       //*******************************************
       // Store info about real photon - check ECals for single neutral cluster
@@ -367,15 +372,15 @@ void UserEvent970(PaEvent & e) { // begin event loop
       } // End loop over neutral clusters 
 
       // ! NOW CHECK THAT THERE IS ONLY ONE NEUTRAL CLUSTER !
-      //if (clusterCount != 1) continue;  
+      if (clusterCount != 1) continue;  
       eventFlags.setFlagByName("singleCl_flag", true);
 
       //*******************************************
       // Debug statements ... (2/2)
-      //printDebug("    Vertex: (" + std::to_string(Xprim) + ", " + std::to_string(Yprim) + ", " + std::to_string(Zprim) + ")");
-      //printDebug("    mu: P: " + std::to_string(inMu_p) + " GeV/c, Charge: " + std::to_string(beam.Q()));
-      //printDebug("    mu': P: " + std::to_string(outMu_p) + " GeV/c, Charge: " + std::to_string(outMu.Q()));
-      //printDebug("    Kinematics: Q2: " + std::to_string(Q2) +  " GeV2, y: " + std::to_string(y) + ", W2: " + std::to_string(W2) + " GeV2, x: " + std::to_string(xbj));
+      printDebug("    Vertex: (" + std::to_string(Xprim) + ", " + std::to_string(Yprim) + ", " + std::to_string(Zprim) + ")");
+      printDebug("    mu: P: " + std::to_string(inMu_p) + " GeV/c, Charge: " + std::to_string(beam.Q()));
+      printDebug("    mu': P: " + std::to_string(outMu_p) + " GeV/c, Charge: " + std::to_string(outMu.Q()));
+      printDebug("    Kinematics: Q2: " + std::to_string(Q2) +  " GeV2, y: " + std::to_string(y) + ", W2: " + std::to_string(W2) + " GeV2, x: " + std::to_string(xbj));
 
       //*******************************************
 
