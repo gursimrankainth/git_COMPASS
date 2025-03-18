@@ -67,11 +67,6 @@ struct EventFlags {
         flags.push_back({false, 0, "passHodo_flag", "No. of events where scattered muon passes Hodoscope check"});
         flags.push_back({false, 0, "charge_flag", "No. of events where scattered muon has the same charge as the beam"});
         flags.push_back({false, 0, "zFirstLast_flag", "No. of events where first and last scattered muon z coord. are measured before and after SM1"});
-        flags.push_back({false, 0, "Q2_flag", "No. of events where 1 < Q2 < 10"});
-		// DVCS flags 
-        flags.push_back({false, 0, "y_flag", "No. of events where 0.05 < y < 0.9"});
-        flags.push_back({false, 0, "singleTrack_flag", "No. of events where primary vertex only has one outgoing track"});
-        flags.push_back({false, 0, "singleCl_flag", "No. of events where there is only a single cluster in the ECals"});
     }
 
     // Function to create a new flag dynamically
