@@ -184,7 +184,7 @@ void UserEvent97(PaEvent & e) {
   XCHECK_REGISTER_FLAG(Event_Meantime, "No. of events where beam track meantime is within acceptable flux requirements");
   XCHECK_REGISTER_FLAG(Event_TiS, "No. of events where time in spill is within acceptable flux requirements");
   XCHECK_REGISTER_FLAG(Event_Hodo, "No. of events where scattered muon passes Hodoscope check");
-  XCHECK_REGISTER_FLAG(Event_InTarget, "No. of events where scattered muon vertex is in target");
+  XCHECK_REGISTER_FLAG(Event_InTarget, "No. of events where the vertex is in the target");
   XCHECK_REGISTER_FLAG(Event_Trigger, "No. of events with MT, LT, OT or LAST physics triggers");
   XCHECK_REGISTER_FLAG(Event_RealoutMu, "No. of events where the scattered muon actually exists");
   XCHECK_REGISTER_FLAG(Event_Charge, "No. of events where scattered muon has the same charge as the beam");
@@ -416,14 +416,11 @@ void UserEvent97(PaEvent & e) {
     // HodoHelper->iMuPrim(v, checkYokeSM2, reject2muEvents, checkCanBeMuon, true, minXX0muPr, true, true) 
     int i_omu = -1; 
 		i_omu = HodoHelper->iMuPrim(v,false,false,true,false,15); // index of the scattered muon WITHOUT CHECKING IF IT PASSES the hodoscope check 
-    if (i_omu == -1) continue;
+    if (i_omu == -1) continue;  
 
-    const PaParticle & outMu_noHodo = e.vParticle(i_omu); 
-	  const PaTPar& Par_outMu_noHodo = outMu_noHodo.ParInVtx(iv); // scattered muon parameters at the vertex    
-
-    if(!(PaAlgo::InTarget(Par_outMu_noHodo,'O',Run, 1.9, 1.2, -318.5, -78.5, 2.0))) continue;    
-    eventFlags.vertex_flag = PaAlgo::InTarget(Par_outMu_noHodo,'O',Run, 1.9, 1.2, -318.5, -78.5, 2.0);
-    XCHECK_COUNT_FLAG(Event_InTarget, "No. of events where scattered muon vertex is in target");
+    if(!(PaAlgo::InTarget(Par_beam,'O',Run, 1.9, 1.2, -318.5, -78.5, 2.0))) continue;    
+    eventFlags.vertex_flag = PaAlgo::InTarget(Par_beam,'O',Run, 1.9, 1.2, -318.5, -78.5, 2.0);
+    XCHECK_COUNT_FLAG(Event_InTarget, "No. of events where the vertex is in the target");
 
     if (!eventFlags.trig_flag) continue; 
     XCHECK_COUNT_FLAG(Event_Trigger, "No. of events with MT, LT, OT or LAST physics triggers");
