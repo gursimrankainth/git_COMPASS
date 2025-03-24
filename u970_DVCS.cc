@@ -129,7 +129,8 @@ void UserEvent970(PaEvent & e) { // begin event loop
     bool trig_flag  = false; 
     bool TiS_flag   = false;
     bool flux_flag  = false;
-    bool outMu_flag = false;
+    bool outMu_flag = false;  
+    bool DIS_flag   = false; // Set to true to adjust Q2, y and single outgoing track cuts
 
     //*****************************************************************************
     static bool first(true);
@@ -221,7 +222,7 @@ void UserEvent970(PaEvent & e) { // begin event loop
                 LAST = 1<<9,
                 TRand = 1<<10,
                 NRand = 1<<11
-        };
+    };
 
     trig_mask = e.TrigMask();
     trig_mask = trig_mask&2047;
@@ -245,10 +246,21 @@ void UserEvent970(PaEvent & e) { // begin event loop
     }
 
     //*******************************************
-    // Initialize variables and check time in spill (time in spill cut is applied later not here)    
-    eventFlags.createFlag("Q2_flag", "No. of events where 1 < Q2 < 10");
-    eventFlags.createFlag("y_flag", "No. of events where 0.05 < y < 0.9");
-    eventFlags.createFlag("singleTrack_flag", "No. of events where primary vertex only has one outgoing track");
+    // Initialize variables, extra flags and check time in spill (time in spill cut is applied later not here)    
+    if (DIS_flag) {
+      eventFlags.createFlag("Q2_DIS_flag", "No. of events where 0.8 < Q2 (DIS)");
+      eventFlags.createFlag("y_DIS_flag", "No. of events where 0.01 < y < 0.99 (DIS)");
+      eventFlags.createFlag("multiTrack_flag", "No. of events where primary vertex has multiple outgoing tracks (DIS)");
+    }
+
+    else {
+      eventFlags.createFlag("Q2_flag", "No. of events where 1 < Q2 < 10");
+      eventFlags.createFlag("y_flag", "No. of events where 0.05 < y < 0.9");
+      eventFlags.createFlag("singleTrack_flag", "No. of events where primary vertex only has one outgoing track");
+    }
+
+    eventFlags.createFlag("nCls_flag", "No. of events where multiple clusters are found in ECal 0, 1 or 2 only");
+
     eventFlags.createFlag("singleCl_flag", "No. of events where there is only a single cluster in the ECals");
     eventFlags.resetFlags(); // Reset all event statistic counter flags to false
      
@@ -325,62 +337,80 @@ void UserEvent970(PaEvent & e) { // begin event loop
       xbj = PaAlgo::xbj (inMu_TL, outMu_TL); //xbj = Q2/(2*q*targ_TL);
 
       // Current kinematic cuts may be tightened after the kinematically constrained fit is applied 
-      if (Q2 < 1 || Q2 > 10) continue;
-      eventFlags.setFlagByName("Q2_flag", true);
+      if (!DIS_flag) { // DVCS 
+        if (Q2 < 1 || Q2 > 10) continue; // exclusive Q2 cut 
+        eventFlags.setFlagByName("Q2_flag", true);
 
-      if (y < 0.05 || y > 0.9) continue; 
-      eventFlags.setFlagByName("y_flag", true);
+        if (y < 0.05 || y > 0.9) continue; // exclusive y cut 
+        eventFlags.setFlagByName("y_flag", true);
+      }
+
+      else { // DIS 
+        //if (Q2 < 0.8 || Q2 > 10) continue; // inclusive Q2 cut 
+        if (Q2 < 0.8) continue; // inclusive Q2 cut 
+        eventFlags.setFlagByName("Q2_DIS_flag", true);
+
+        if (y < 0.01 || y > 0.99) continue; // inclusive y cut  
+        eventFlags.setFlagByName("y_DIS_flag", true);
+      }
 
       double inMu_p = beam_track.vTPar(0).Mom();
       double outMu_p = outMu_track.vTPar(0).Mom();
       //*******************************************
       // Exclusive selection starts here  ...  
       // Only one outgoing particle (scattered proton and photon are detected using ECals and CAMERA so will not be found here)
-      if (Nprim != 1) continue; 
-      eventFlags.setFlagByName("singleTrack_flag", true);
-      eventFlags.setFlagByName("test_flag", true);
+      if (!DIS_flag) { // DVCS 
+        if (Nprim != 1) continue; 
+        eventFlags.setFlagByName("singleTrack_flag", true);
+      }
+
+      else {
+        eventFlags.setFlagByName("multiTrack_flag", true);
+      }
 
       //*******************************************
       // Store info about real photon - check ECals for single neutral cluster
       // ! CURRENTLY LOOKING FOR ANY NEUTRAL CLUSTERS, NOT SPECIFICALLY FOR ONE !
+      printDebug("     ", true);
+      //printDebug("*** Run: " + std::to_string(Run) + ", spill: " + std::to_string(Spill) + ", event: " + std::to_string(EvtInSpill) + " ***", true);
+
       int ecal0id = PaSetup::Ref().iCalorim("EC00P1__");
       int ecal1id = PaSetup::Ref().iCalorim("EC01P1__");
       int ecal2id = PaSetup::Ref().iCalorim("EC02P1__");
 
-      std::vector<PaCaloClus> Clus_gamma;  // Store valid clusters dynamically
-      std::vector<int> cl_id;  // Store calorimeter IDs for valid clusters
+      std::vector<PaCaloClus> Clus_gamma; // Store valid clusters dynamically
+      std::vector<int> cl_id; // Store calorimeter IDs for valid clusters
+
+      float EC0_thr = 4; // ECAL thresholds for DVCS event selection
+      float EC1_thr = 5;
+      float EC2_thr = 10;
 
       int clusterCount = 0;
-
-      for (int iclus = 0; iclus < e.NCaloClus(); iclus++) { // Begin loop over neutral clusters
+      for (int iclus = 0; iclus < e.NCaloClus(); iclus++) { // Begin loop over clusters
         const PaCaloClus & cl = e.vCaloClus(iclus);
-        int nam = cl.iCalorim();
+        int icalo = cl.iCalorim();
 
-        if ((nam != ecal0id) && (nam != ecal1id) && (nam != ecal2id)) continue; // cluster needs to be detected in one of the ECals
-        if (cl.iTrack() != -1) continue; // cluster needs to have an associated track  
-
+        if (cl.iTrack() != -1) continue; // cluster needs to have no associated charged track
+        if ((icalo != ecal0id) && (icalo != ecal1id) && (icalo != ecal2id)) continue; // needs to be found in ECal 0, 1 or 2
         if (Year == 2016 && !EcalTimeCut(beam_track, cl, Run)) continue; // check timing of the clusters
 
-        if ((nam == ecal0id && cl.E() >= 4) || // Energy threshold check (above DVCS energy threshold)
-            (nam == ecal1id && cl.E() >= 5) ||
-            (nam == ecal2id && cl.E() >= 10)) {
-            Clus_gamma.push_back(cl); // Store the valid cluster
-            cl_id.push_back(nam);     // Store the ECal ID 
-            clusterCount++; 
-        }
+        Clus_gamma.push_back(cl); // Store the valid cluster
+        cl_id.push_back(icalo);   // Store the ECal ID 
+        printDebug("    Evt: " + std::to_string(Evt) + ", ECal ID:" + std::to_string(icalo) + ", Energy: " + std::to_string(cl.E()), true);
+        clusterCount++;
 
-      } // End loop over neutral clusters 
+      } // End loop over clusters
 
-      // ! NOW CHECK THAT THERE IS ONLY ONE NEUTRAL CLUSTER !
-      if (clusterCount != 1) continue;  
-      eventFlags.setFlagByName("singleCl_flag", true);
+      if (clusterCount == 0) continue; // skip event if not clusters are found 
+      printDebug("    No. of clusters: " + std::to_string(clusterCount), true); 
+      eventFlags.setFlagByName("nCls_flag", true);
 
       //*******************************************
       // Debug statements ... (2/2)
-      printDebug("    Vertex: (" + std::to_string(Xprim) + ", " + std::to_string(Yprim) + ", " + std::to_string(Zprim) + ")");
-      printDebug("    mu: P: " + std::to_string(inMu_p) + " GeV/c, Charge: " + std::to_string(beam.Q()));
-      printDebug("    mu': P: " + std::to_string(outMu_p) + " GeV/c, Charge: " + std::to_string(outMu.Q()));
-      printDebug("    Kinematics: Q2: " + std::to_string(Q2) +  " GeV2, y: " + std::to_string(y) + ", W2: " + std::to_string(W2) + " GeV2, x: " + std::to_string(xbj));
+      //printDebug("    Vertex: (" + std::to_string(Xprim) + ", " + std::to_string(Yprim) + ", " + std::to_string(Zprim) + ")");
+      //printDebug("    mu: P: " + std::to_string(inMu_p) + " GeV/c, Charge: " + std::to_string(beam.Q()));
+      //printDebug("    mu': P: " + std::to_string(outMu_p) + " GeV/c, Charge: " + std::to_string(outMu.Q()));
+      //printDebug("    Kinematics: Q2: " + std::to_string(Q2) +  " GeV2, y: " + std::to_string(y) + ", W2: " + std::to_string(W2) + " GeV2, x: " + std::to_string(xbj));
 
       //*******************************************
 

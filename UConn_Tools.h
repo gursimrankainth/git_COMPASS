@@ -33,12 +33,13 @@
 // 4. Example usage: https://github.com/gursimrankainth/git_COMPASS/blob/main/u970_DVCS.cc  
 //    ... 
 //    EventFlags eventFlags; // Create an instance of flags and counters 
+//    eventFlags.createFlag("flag name", "description"); // create a new flag (needs to be in event loop above resetFlags)
 //    eventFlags.resetFlags(); // reset all flags to false at the start of each event loop
 //    eventFlags.setFlagByName("allEvts_flag") // set flag to true or false by its name 
 //    eventFlags.incrementCounters() // increment all counters with true flags in main event loop (outside of vertex loop)
 //    eventFlags.printFlags() // print cut statistics
-// 5. Cannot dynamically create flags outside of the structure. If you want additional flags, add them below. 
-//    If you want to remove flags comment them out. 
+// 5. Can also create a new flag usng setFlagByName though the reccomendation is to use createFlag and setFlagByName
+
 
 // Define a structure and its member functions 
 struct EventFlags {
