@@ -204,13 +204,13 @@ bool beamFluxCheck(const PaEvent &e, const PaVertex &v, int vertexIndex, int Run
 	} else {flags.setFlagByName("zFirst_flag", true);}
 
 	// Check that the beam momentum falls within acceptable range
-	double inMu_mom = beam_track.vTPar(0).Mom();
+	double inMu_mom = beam.ParInVtx(vertexIndex).Mom();
 	if (inMu_mom < 140.0 || inMu_mom > 180.0) {
 		return false;
 	} else {flags.setFlagByName("momRange_flag", true);}
 
 	// Check that the beam momentum error falls within acceptable range
-	double inMu_momErr = sqrt(beam_track.vTPar(0)(5,5))/(beam_track.vTPar(0)(5)*beam_track.vTPar(0)(5));
+	double inMu_momErr = sqrt(beam.ParInVtx(vertexIndex)(5,5))/(beam.ParInVtx(vertexIndex)(5)*beam.ParInVtx(vertexIndex)(5));
   	if (inMu_momErr > 0.025*inMu_mom) {
 		return false;
 	} else {flags.setFlagByName("momErr_flag", true);}
@@ -314,7 +314,6 @@ bool outMuCheck(const PaEvent &e, const PaVertex &v, int vertexIndex, int Run, c
 
 	// Check that the scattered muon has the same charge as the beam  
 	outMu = e.vParticle(i_omu);
-	//outMu = e.vParticle(i_omu_check_hodo);
 	// if outMu.Q or beam.Q return -777 it means the assocaited track was reconstructed in a field free region (charge is unkown)
 	if (outMu.Q() != beam.Q() || outMu.Q() == -777 || beam.Q() == -777) {
 		return false; 

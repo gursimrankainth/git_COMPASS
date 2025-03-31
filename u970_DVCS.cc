@@ -14,14 +14,18 @@
 #include "PaEvent.h" 
 #include "G3part.h" 
 #include "PaHodoHelper.h"
-//#include "Tools_Camera.hh"
 
 #include "ecal_time_cuts.h"
-#include "/Users/gursimran/cern/phastPackages/xcheck_newTiS/tis_range.cc"
-#include "/Users/gursimran/cern/phastPackages/xcheck_newTiS/tis_range.h"
-//#include "/afs/cern.ch/user/g/gkainth/phastPackages/flux_files/flux_Johannes/functions/TiS_range.cc"
+#include "Tools_Camera.hh"
 
-#include "UConn_Tools.h"
+//#include "/Users/gursimran/cern/phastPackages/xcheck_newTiS/tis_range.cc"
+//#include "/Users/gursimran/cern/phastPackages/xcheck_newTiS/tis_range.h"
+//#include "UConn_Tools.h"
+
+#include "/afs/cern.ch/user/g/gkainth/phastPackages/xcheck_newTiS/tis_range.cc"
+#include "/afs/cern.ch/user/g/gkainth/phastPackages/xcheck_newTiS/tis_range.h"
+#include "/afs/cern.ch/user/g/gkainth/phastPackages/git_COMPASS/UConn_Tools.h"
+//#include "/afs/cern.ch/user/g/gkainth/phastPackages/flux_files/flux_Johannes/functions/TiS_range.cc"
 
 // ************************************************************************** //
 // UserEvent for preselecting exclusive photon events	(DVCS)			            //
@@ -37,12 +41,16 @@ bool verbose_mode = false; // Create an instance of verbose_mode
 // Event statistic counter flags  
 EventFlags eventFlags; // Create an instance of flags and counters 
 
+// User selection flags 
+bool plotECalEnergy = true; // if this is true DVCS threshold cut is turned off 
+
 //*****************************************************************************
 void UserEvent970(PaEvent & e) { // begin event loop
 
     // Define constants
-    static PaHodoHelper* HodoHelper = NULL;
+    static PaHodoHelper* HodoHelper = NULL; 
     static TiSRange*     tis_range  = NULL; 
+    static PaCamera*     cam_inst   = NULL;
 
     const double M_pi    = G3partMass[8]; // Pion mass 
     const double M_gamma = G3partMass[1]; // Photon mass
@@ -64,17 +72,28 @@ void UserEvent970(PaEvent & e) { // begin event loop
     static TH1F* h97_outMu_px = NULL; 
 
     static TH1F* h97_y      = NULL;
+    static TH1F* h97_nu     = NULL;
     static TH1F* h97_Q2     = NULL;
     static TH1F* h97_W2     = NULL;
     static TH1F* h97_xbj    = NULL;
     static TH2F* h97_Q2xbj  = NULL;
     static TH2F* h97_Chi2Q2 = NULL; 
+    static TH1F* h97_t      = NULL;
 
     static TH1F* h97_gamma_E_EC0 = NULL;
     static TH1F* h97_gamma_E_EC1 = NULL;
     static TH1F* h97_gamma_E_EC2 = NULL;
     static TH1F* h97_E_miss      = NULL;
     static TH1F* h97_M2_miss     = NULL;
+
+    static TH1F* h97_delta_phi = NULL; 
+    static TH1F* h97_delta_pt  = NULL;
+    static TH1F* h97_delta_Z   = NULL;
+    static TH1F* h97_M2x       = NULL;
+
+    static TH1F* h97_gamma_E_EC0_ex = NULL;
+    static TH1F* h97_gamma_E_EC1_ex = NULL;
+    static TH1F* h97_gamma_E_EC2_ex = NULL;
 
     static TTree* tree(NULL);
 
@@ -130,7 +149,6 @@ void UserEvent970(PaEvent & e) { // begin event loop
     bool TiS_flag   = false;
     bool flux_flag  = false;
     bool outMu_flag = false;  
-    bool DIS_flag   = false; // Set to true to adjust Q2, y and single outgoing track cuts
 
     //*****************************************************************************
     static bool first(true);
@@ -152,10 +170,12 @@ void UserEvent970(PaEvent & e) { // begin event loop
         h97_outMu_px = new TH1F("h97_outMu_px", "Px Scattered Muon (GeV/c); Px [GeV/c]; Events", 100, 0, 10);
 
         h97_y      = new TH1F("h97_y", "Fractional Energy Loss of Incoming Muon (y); y; Events", 100, 0, 1);
-        h97_Q2     = new TH1F("h97_Q2", "Four-momentum Transfer Squared (Q^{2}); Q^{2} [GeV^{2}]; Events", 100, 0, 10);
+        h97_nu     = new TH1F("h97_nu", "Energy of the virtual photon (#nu); #nu [GeV]; Events", 100, 0, 180);
+        h97_Q2     = new TH1F("h97_Q2", "Four-momentum Transfer Squared (Lepton) (Q^{2}); Q^{2} [GeV^{2}]; Events", 100, 0, 10);
         h97_W2     = new TH1F("h97_W2", "Effective Mass of final state hadrons Squared (W^{2}); W^{2} [GeV^{2}]; Events", 100, 0, 350);
         h97_Q2xbj  = new TH2F("h97_Q2xbj", "Kinematic Coverage of Dataset; x_{bj}; Q^{2} [GeV^{2}]", 150, 0, 1, 150, 0, 100);
         h97_Chi2Q2 = new TH2F("h97_Chi2Q2", "Chi2 of Reconstruced Vertex vs. Q2; Chi^{2}; Q^{2} [GeV^{2}]", 100, 0, 10, 100, 0, 10);
+        h97_t      = new TH1F("h97_t", "Four-momentum Transfer Squared (Nucleon) (t); t [GeV^{2}]; Events", 100, 0, 200);
 
         const int nBins = 100;      // Number of bins
         double xMin = 1e-3;         // Minimum x value (avoid 0 because log(0) is undefined)
@@ -166,11 +186,20 @@ void UserEvent970(PaEvent & e) { // begin event loop
         }
         h97_xbj = new TH1F("h97_xbj", "Elasticity of the Scattering Process (x_{bj}); x_{bj}; Events", nBins, binEdges);
 
-        h97_gamma_E_EC0 = new TH1F("h97_E_EC0", "Photon Energy ECal 0 - Low Energy Cut; E_{#gamma} [GeV]; Counts", 100, 0, 50);
-        h97_gamma_E_EC1 = new TH1F("h97_E_EC1", "Photon Energy ECal 1 - Low Energy Cut; E_{#gamma} [GeV]; Counts", 100, 0, 100);
-        h97_gamma_E_EC2 = new TH1F("h97_E_EC2", "Photon Energy ECal 2 - Low Energy Cut; E_{#gamma} [GeV]; Counts", 100, 0, 200);
+        h97_gamma_E_EC0 = new TH1F("h97_E_EC0", "Photon Energy ECal 0 - Before Excl. Cuts; E_{#gamma} [GeV]; Counts", 100, 0, 50);
+        h97_gamma_E_EC1 = new TH1F("h97_E_EC1", "Photon Energy ECal 1 - Before Excl. Cuts; E_{#gamma} [GeV]; Counts", 100, 0, 100);
+        h97_gamma_E_EC2 = new TH1F("h97_E_EC2", "Photon Energy ECal 2 - Before Excl. Cuts; E_{#gamma} [GeV]; Counts", 100, 0, 200);
         h97_E_miss      = new TH1F("h97_E_miss", "Missing Energy (All ECals); E_{#gamma} [GeV]; Counts", 100, -20, 20);
         h97_M2_miss     = new TH1F("h97_M2_miss", "Missing Mass Squared (All ECals); M^{2}_{#gamma} [GeV^{2}/c^{4}]; Counts", 100, 0, 300);
+
+        h97_delta_phi = new TH1F("h97_delta_phi", "#Delta#phi = #phi^{cam} - #phi^{miss}; #Delta#phi [rad]; Counts", 100, -0.5, 0.5);
+        h97_delta_pt = new TH1F("h97_delta_pt", "#DeltaP_{t} = P_{t}^{cam} - P_{t}^{miss}; #DeltaP_{t} [GeV/c]; Counts", 100, -0.4, 0.4);
+        h97_delta_Z = new TH1F("h97_delta_Z", "#DeltaZ_{A} = Z_{A}^{cam} - Z_{A}^{miss}; #DeltaZ_{A} [cm]; Counts", 100, -20, 20);
+        h97_M2x      = new TH1F("h97_M2x", "M^{2}_{undet} = (k + p - k'- q'- p')^{2}; M^{2}_{undet} [rad]; Counts", 100, -0.5, 0.5);
+
+        h97_gamma_E_EC0_ex = new TH1F("h97_E_EC0_ex", "Photon Energy ECal 0 - After Excl. Cuts; E_{#gamma} [GeV]; Counts", 100, 0, 50);
+        h97_gamma_E_EC1_ex = new TH1F("h97_E_EC1_ex", "Photon Energy ECal 1 - After Excl. Cuts; E_{#gamma} [GeV]; Counts", 100, 0, 100);
+        h97_gamma_E_EC2_ex = new TH1F("h97_E_EC2_ex", "Photon Energy ECal 2 - After Excl. Cuts; E_{#gamma} [GeV]; Counts", 100, 0, 200);
 
         //
         // Ntuple definition 
@@ -247,21 +276,20 @@ void UserEvent970(PaEvent & e) { // begin event loop
 
     //*******************************************
     // Initialize variables, extra flags and check time in spill (time in spill cut is applied later not here)    
-    if (DIS_flag) {
-      eventFlags.createFlag("Q2_DIS_flag", "No. of events where 0.8 < Q2 (DIS)");
-      eventFlags.createFlag("y_DIS_flag", "No. of events where 0.01 < y < 0.99 (DIS)");
-      eventFlags.createFlag("multiTrack_flag", "No. of events where primary vertex has multiple outgoing tracks (DIS)");
-    }
+    //eventFlags.createFlag("Q2_DIS_flag", "No. of events where Q2 > 0.5");
+    //eventFlags.createFlag("y_DIS_flag", "No. of events where 0.01 < y < 0.99");
+    eventFlags.createFlag("Q2_flag", "No. of events where 1 < Q2 < 10");
+    eventFlags.createFlag("y_flag", "No. of events where 0.05 < y < 0.9");
 
-    else {
-      eventFlags.createFlag("Q2_flag", "No. of events where 1 < Q2 < 10");
-      eventFlags.createFlag("y_flag", "No. of events where 0.05 < y < 0.9");
-      eventFlags.createFlag("singleTrack_flag", "No. of events where primary vertex only has one outgoing track");
-    }
-
+    eventFlags.createFlag("singleTrack_flag", "No. of events where primary vertex only has one outgoing track");
     eventFlags.createFlag("nCls_flag", "No. of events where multiple clusters are found in ECal 0, 1 or 2 only");
-
     eventFlags.createFlag("singleCl_flag", "No. of events where there is only a single cluster in the ECals");
+    eventFlags.createFlag("proton_flag", "No. of events where proton candidates have 0.1 < beta < 0.95");
+    eventFlags.createFlag("delta_pt_flag", "No. of events where |delta_pt| < 0.3 GeV/c");
+    eventFlags.createFlag("delta_phi_flag", "No. of events where |delta_phi| < 0.4 rad");
+    eventFlags.createFlag("delta_Z_flag", "No. of events where |delta_Z| < 16 cm");
+    eventFlags.createFlag("M2x_flag", "No. of events where |(M_x)^2| < 0.3 (GeV/c^2)^2");
+    eventFlags.createFlag("nCombo_flag", "No. of events where a vertex, photon and proton combination satisfies exclusivity conditions");
     eventFlags.resetFlags(); // Reset all event statistic counter flags to false
      
     Run         = e.RunNum();
@@ -273,17 +301,20 @@ void UserEvent970(PaEvent & e) { // begin event loop
 
     if (Run != LastRun) { // Reinitialize HodoHelper and tis_range only if the run number changes 
         HodoHelper = & PaHodoHelper::Init("", true);  
-        tis_range  = new TiSRange("/Users/gursimran/cern/phastPackages/flux_files/flux_Johannes/2016/flux_files");
+        //tis_range  = new TiSRange("/Users/gursimran/cern/phastPackages/flux_files/flux_Johannes/2016/flux_files");
+        tis_range  = new TiSRange("/afs/cern.ch/user/g/gkainth/phastPackages/flux_files/flux_Johannes/2016/flux_files");
         //Set_TiSrange("/afs/cern.ch/user/g/gkainth/phastPackages/flux_files/flux_Johannes/2016/flux_files", Run, Run);
         LastRun = Run;  // Update LastRun to the current run number
     }
  
     TiS_flag = tis_range->CheckWindow(Run, Spill, TimeInSpill); // check the time in spill 
+    cam_inst= & PaCamera::GetInstance();
+    cam_inst->NewEvent(e);
 
     //*******************************************
     // Debug statements ... (1/2)
-    printDebug("     ");
-    printDebug("*** Run: " + std::to_string(Run) + ", spill: " + std::to_string(Spill) + ", event: " + std::to_string(EvtInSpill) + " ***");
+    //printDebug("     ");
+    //printDebug("*** Run: " + std::to_string(Run) + ", spill: " + std::to_string(Spill) + ", event: " + std::to_string(EvtInSpill) + " ***");
     
     //*******************************************  
     eventFlags.setFlagByName("allEvts_flag", true);
@@ -309,7 +340,7 @@ void UserEvent970(PaEvent & e) { // begin event loop
 
 			static BeamFluxParams beamParams; // Create an instance of BeamFluxParams
 			flux_flag = beamFluxCheck(e, v, iv, Run, TiS_flag, beamParams, beam, beam_track, Par_beam, eventFlags);
-			if (!flux_flag) continue; 
+			if (!flux_flag) continue;  
 
       //*******************************************
       // Store info about scattered muon (outMu)
@@ -337,41 +368,33 @@ void UserEvent970(PaEvent & e) { // begin event loop
       xbj = PaAlgo::xbj (inMu_TL, outMu_TL); //xbj = Q2/(2*q*targ_TL);
 
       // Current kinematic cuts may be tightened after the kinematically constrained fit is applied 
-      if (!DIS_flag) { // DVCS 
-        if (Q2 < 1 || Q2 > 10) continue; // exclusive Q2 cut 
-        eventFlags.setFlagByName("Q2_flag", true);
+      bool test_flag = false; 
+      //if (Q2 < 0.5) continue; // inclusive Q2 cut
+      if (Q2 >= 0.5) {test_flag = true;} 
+      if (!test_flag) continue; 
+      eventFlags.setFlagByName("Q2_DIS_flag", true);
+      //if (Q2 < 1 || Q2 > 10) continue; // exclusive Q2 cut 
+      //eventFlags.setFlagByName("Q2_flag", true);
 
-        if (y < 0.05 || y > 0.9) continue; // exclusive y cut 
-        eventFlags.setFlagByName("y_flag", true);
-      }
+      //if (y < 0.01 || y > 0.99) continue; // inclusive y cut 
+      //eventFlags.setFlagByName("y_DIS_flag", true);
+      //if (y < 0.05 || y > 0.9) continue; // exclusive y cut 
+      //eventFlags.setFlagByName("y_flag", true);
 
-      else { // DIS 
-        //if (Q2 < 0.8 || Q2 > 10) continue; // inclusive Q2 cut 
-        if (Q2 < 0.8) continue; // inclusive Q2 cut 
-        eventFlags.setFlagByName("Q2_DIS_flag", true);
-
-        if (y < 0.01 || y > 0.99) continue; // inclusive y cut  
-        eventFlags.setFlagByName("y_DIS_flag", true);
-      }
-
-      double inMu_p = beam_track.vTPar(0).Mom();
-      double outMu_p = outMu_track.vTPar(0).Mom();
+      double inMu_p = beam.ParInVtx(iv).Mom();
+      double outMu_p = outMu.ParInVtx(iv).Mom();
+       
       //*******************************************
       // Exclusive selection starts here  ...  
       // Only one outgoing particle (scattered proton and photon are detected using ECals and CAMERA so will not be found here)
-      if (!DIS_flag) { // DVCS 
-        if (Nprim != 1) continue; 
-        eventFlags.setFlagByName("singleTrack_flag", true);
-      }
-
-      else {
-        eventFlags.setFlagByName("multiTrack_flag", true);
-      }
+      if (Nprim != 1) continue; 
+      //std::cout << std::endl <<"DEBUG :: " << Evt << " " << Q2 << " " << y << std::endl;
+      eventFlags.setFlagByName("singleTrack_flag", true);  
 
       //*******************************************
       // Store info about real photon - check ECals for single neutral cluster
       // ! CURRENTLY LOOKING FOR ANY NEUTRAL CLUSTERS, NOT SPECIFICALLY FOR ONE !
-      printDebug("     ", true);
+      //printDebug("     ", true);
       //printDebug("*** Run: " + std::to_string(Run) + ", spill: " + std::to_string(Spill) + ", event: " + std::to_string(EvtInSpill) + " ***", true);
 
       int ecal0id = PaSetup::Ref().iCalorim("EC00P1__");
@@ -391,38 +414,192 @@ void UserEvent970(PaEvent & e) { // begin event loop
         int icalo = cl.iCalorim();
 
         if (cl.iTrack() != -1) continue; // cluster needs to have no associated charged track
-        if ((icalo != ecal0id) && (icalo != ecal1id) && (icalo != ecal2id)) continue; // needs to be found in ECal 0, 1 or 2
-        if (Year == 2016 && !EcalTimeCut(beam_track, cl, Run)) continue; // check timing of the clusters
+        if (!EcalTimeCut(beam_track, cl, Run) && !e.IsMC()) continue; // check timing of the clusters
+ 
+        if (plotECalEnergy) { // Fill the reconstructed energy distributions for each ECal
+          if (icalo == ecal0id) h97_gamma_E_EC0->Fill(cl.E());
+          if (icalo == ecal1id) h97_gamma_E_EC1->Fill(cl.E());
+          if (icalo == ecal2id) h97_gamma_E_EC2->Fill(cl.E());
+        }
 
-        Clus_gamma.push_back(cl); // Store the valid cluster
-        cl_id.push_back(icalo);   // Store the ECal ID 
-        printDebug("    Evt: " + std::to_string(Evt) + ", ECal ID:" + std::to_string(icalo) + ", Energy: " + std::to_string(cl.E()), true);
-        clusterCount++;
+        if ((icalo == ecal0id) && (cl.E() >= EC0_thr)) { // EC0
+          Clus_gamma.push_back(cl); // Store the valid cluster
+          cl_id.push_back(icalo);   // Store the ECal ID 
+          //printDebug("    Evt: " + std::to_string(Evt) + ", ECal ID:" + std::to_string(icalo) + ", Energy: " + std::to_string(cl.E()), true);
+          clusterCount++; 
+        }
+
+        else if ((icalo == ecal1id) && (cl.E() >= EC1_thr)) { // EC1
+          Clus_gamma.push_back(cl); // Store the valid cluster
+          cl_id.push_back(icalo);   // Store the ECal ID 
+          //printDebug("    Evt: " + std::to_string(Evt) + ", ECal ID:" + std::to_string(icalo) + ", Energy: " + std::to_string(cl.E()), true);
+          clusterCount++; 
+        }
+
+        else if ((icalo == ecal2id) && (cl.E() >= EC2_thr)) { //EC2
+          Clus_gamma.push_back(cl); // Store the valid cluster
+          cl_id.push_back(icalo);   // Store the ECal ID 
+          //printDebug("    Evt: " + std::to_string(Evt) + ", ECal ID:" + std::to_string(icalo) + ", Energy: " + std::to_string(cl.E()), true);
+          clusterCount++; 
+        }
 
       } // End loop over clusters
 
-      if (clusterCount == 0) continue; // skip event if not clusters are found 
-      printDebug("    No. of clusters: " + std::to_string(clusterCount), true); 
+      if (clusterCount == 0) continue; // skip event if there are no clusters
       eventFlags.setFlagByName("nCls_flag", true);
+
+      // ! NOW CHECK THAT THERE IS ONLY ONE NEUTRAL CLUSTER !
+      if (clusterCount != 1) continue; // skip event if there is more than one cluster
+      eventFlags.setFlagByName("singleCl_flag", true);
+
+      // Calculate TL vector for single photon
+      TLorentzVector gamma_TL;
+
+      if (!Clus_gamma.empty()) { // Ensure there is at least one cluster
+        const auto& cluster = Clus_gamma.front(); // Directly access the first (and only) cluster
+        int ecalid = cl_id.front(); // Retrieve cluster ID
+
+        double phdz  = cluster.Z() - v.Z();
+        double phdy  = cluster.Y() - v.Y();
+        double phdx  = cluster.X() - v.X();
+        double phL   = TMath::Sqrt(phdx * phdx + phdy * phdy + phdz * phdz);
+        double cl_E  = cluster.E();
+
+        gamma_TL.SetPxPyPzE(cl_E * phdx / phL, cl_E * phdy / phL, cl_E * phdz / phL, cl_E);
+      }
+
+      //*******************************************
+      // Kinematic variables ... (2/2)
+      t       = (q - gamma_TL).M2();
+      E_miss  = nu - gamma_TL.E() + t/(2 * M_p); // Missing energy (assuming proton)
+      M2_miss = (2 * M_p * (nu - gamma_TL.E())) + (M_p * M_p) + t; // Missing mass squared (assuming proton) 
+
+      //*******************************************
+      // Store info about scattered proton candidates (check CAMERA)
+      // ! CURRENTLY LOOKING FOR ANY PROTONS, NOT SPECIFICALLY FOR ONE !
+      vector <CameraProton> proton_candidates = cam_inst->GetGoodCandidates(v); // vector holding all proton candidates
+      vector <CameraProton> protons; // vector for storing candidates that satisfy 0.1 < beta < 0.95 
+
+      for (auto proton: proton_candidates) {
+        double beta = proton.beta; 
+        if (beta >= 0.1 || beta <= 0.95) {
+          protons.emplace_back(proton);
+        } 
+      }
+
+      if (protons.empty()) continue; // skip events with no good protons 
+      eventFlags.setFlagByName("proton_flag", true); 
+
+      //*******************************************
+      // Check that all combintations of the vertex, photon and proton satisfy exclusivity conditions 
+      // 4 exclusivity variables: detla_phi, delta_pt, delta_Z, M2x
+      int nCombs = 0;
+      vector <CameraProton> protons_excl; // vector for storing candidates which pass the exclusivity cuts 
+
+      TLorentzVector p_miss_TL = targ_TL + inMu_TL - outMu_TL - gamma_TL;
+      double phi_miss = p_miss_TL.Phi();
+      double pt_miss  = p_miss_TL.Vect().Pt(); 
+
+      TVector3 R_vtx;
+      R_vtx.SetXYZ(v.Pos(0),v.Pos(1),v.Pos(2));
+
+      // zero missing mass
+      double M2x = (inMu_TL + targ_TL - outMu_TL - gamma_TL - p_miss_TL) * (inMu_TL + targ_TL - outMu_TL - gamma_TL - p_miss_TL); 
+
+      for (auto proton: protons) { 
+        TLorentzVector p_camera_TL = proton.p4; 
+        double phi_camera = p_camera_TL.Phi();
+        double delta_phi  = phi_camera - phi_miss; // azimuthal angle
+
+        double pt_camera = p_camera_TL.Vect().Pt(); 
+        double delta_pt  = std::abs(pt_camera) - std::abs(pt_miss); // transverse momentum
+
+        TVector3 posRingA = proton.Ahit.vec;
+			  TVector3 posRingB = proton.Bhit.vec;
+        double Z_miss     = cam_inst->GetZA(R_vtx, posRingA, posRingB, phi_miss);
+        double delta_Z    = posRingA.Z() - Z_miss; // z position of the hits in the inner CAMERA ring
+
+        h97_delta_phi->Fill(delta_phi);
+        h97_delta_pt->Fill(delta_pt);
+        h97_delta_Z->Fill(delta_Z);
+        h97_M2x->Fill(M2x);
+
+        // Apply cuts on the exclusivity variables 
+        if (std::fabs(delta_pt) > 0.3) continue; 
+        eventFlags.setFlagByName("delta_pt_flag", true);
+
+        if (std::fabs(delta_phi) > 0.4) continue; 
+        eventFlags.setFlagByName("delta_phi_flag", true);
+
+        if (std::fabs(delta_Z) > 16) continue; 
+        eventFlags.setFlagByName("delta_Z_flag", true);
+
+        if (std::fabs(M2x) > 0.3) continue; 
+        eventFlags.setFlagByName("M2x_flag", true);
+        nCombs++; 
+      }
+
+      if (protons_excl.empty()) continue;
+      eventFlags.setFlagByName("nCombo_flag", true);
+
+/*       printDebug("    ", true);
+      printDebug("*** Run: " + std::to_string(Run) + ", spill: " + std::to_string(Spill) + ", event: " + std::to_string(EvtInSpill) + " ***", true);
+      printDebug("    Vertex: (" + std::to_string(Xprim) + ", " + std::to_string(Yprim) + ", " + std::to_string(Zprim) + ")", true);
+      printDebug("    No. protons: " + std::to_string(protons_excl.size()) + ", No. photons: " + std::to_string(Clus_gamma.size()), true); */
+
+      //*******************************************
+      // Fill histograms for ECal Energy after all exclusivity cuts
+      if (plotECalEnergy) {
+        if (!Clus_gamma.empty()) { // Ensure there is at least one cluster
+          const auto& cluster = Clus_gamma.front(); // Directly access the first (and only) cluster
+          int ecalid = cl_id.front(); // Retrieve cluster ID
+          if (ecalid == ecal0id) {h97_gamma_E_EC0_ex->Fill(cluster.E());}
+          if (ecalid == ecal1id) {h97_gamma_E_EC1_ex->Fill(cluster.E());}
+          if (ecalid == ecal2id) {h97_gamma_E_EC2_ex->Fill(cluster.E());}
+        }
+      }
 
       //*******************************************
       // Debug statements ... (2/2)
-      //printDebug("    Vertex: (" + std::to_string(Xprim) + ", " + std::to_string(Yprim) + ", " + std::to_string(Zprim) + ")");
-      //printDebug("    mu: P: " + std::to_string(inMu_p) + " GeV/c, Charge: " + std::to_string(beam.Q()));
-      //printDebug("    mu': P: " + std::to_string(outMu_p) + " GeV/c, Charge: " + std::to_string(outMu.Q()));
-      //printDebug("    Kinematics: Q2: " + std::to_string(Q2) +  " GeV2, y: " + std::to_string(y) + ", W2: " + std::to_string(W2) + " GeV2, x: " + std::to_string(xbj));
+      printDebug("     ");
+      printDebug("*** Run: " + std::to_string(Run) + ", spill: " + std::to_string(Spill) + ", event: " + std::to_string(EvtInSpill) + " ***");
+      printDebug("    Vertex: (" + std::to_string(Xprim) + ", " + std::to_string(Yprim) + ", " + std::to_string(Zprim) + ")");
+      printDebug("    mu: P: " + std::to_string(inMu_p) + " GeV/c, Charge: " + std::to_string(beam.Q()));
+      printDebug("    mu': P: " + std::to_string(outMu_p) + " GeV/c, Charge: " + std::to_string(outMu.Q()));
+      printDebug("    Kinematics: Q2: " + std::to_string(Q2) +  " GeV2, y: " + std::to_string(y) + ", W2: " + std::to_string(W2) + " GeV2, x: " + std::to_string(xbj));
 
       //*******************************************
+      // Fill histrograms 
+      inMu_py = beam_track.vTPar(0).Py();
+      inMu_px = beam_track.vTPar(0).Px();
+
+      outMu_py = outMu_track.vTPar(0).Py();
+      outMu_px = outMu_track.vTPar(0).Px();
+
+      h97_Zprim->Fill(Zprim);
+      h97_Yprim->Fill(Yprim);
+      h97_Xprim->Fill(Xprim);
+      h97_XYprim->Fill(Xprim,Yprim);
 
       h97_inMu_p->Fill(inMu_p);
+      h97_inMu_py->Fill(inMu_py);
+      h97_inMu_px->Fill(inMu_px);
+
       h97_outMu_p->Fill(outMu_p);
+      h97_outMu_py->Fill(outMu_py);
+      h97_outMu_px->Fill(outMu_px);
 
       h97_y->Fill(y);
+      h97_nu->Fill(nu);
       h97_Q2->Fill(Q2);
       h97_W2->Fill(W2);
       h97_xbj->Fill(xbj); 
       h97_Q2xbj->Fill(xbj,Q2);
       h97_Chi2Q2->Fill(Chi2,Q2);
+      h97_t->Fill(t);
+
+      h97_E_miss->Fill(E_miss);
+      h97_M2_miss->Fill(M2_miss);     
 
 		} // end loop over vertices 
 
@@ -436,7 +613,13 @@ void UserEvent970(PaEvent & e) { // begin event loop
 } // end event loop 
 
 void UserJobEnd970() {
+  if (plotECalEnergy) {
+    std::cout << "! WARNING: ECAL ENERGY PLOT IS ON. TURN OFF TO IMPROVE EFFICIENCY. !"<< std::endl;
+    std::cout << std::endl;
+  }
+
   eventFlags.printFlags(); // Print to output stream
+
 }
 
 
