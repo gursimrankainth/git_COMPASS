@@ -18,13 +18,14 @@
 #include "ecal_time_cuts.h"
 #include "Tools_Camera.hh"
 
-//#include "/Users/gursimran/cern/phastPackages/xcheck_newTiS/tis_range.cc"
-//#include "/Users/gursimran/cern/phastPackages/xcheck_newTiS/tis_range.h"
-//#include "UConn_Tools.h"
+#include "/Users/gursimran/cern/phastPackages/xcheck_newTiS/tis_range.cc"
+#include "/Users/gursimran/cern/phastPackages/xcheck_newTiS/tis_range.h"
+#include "Toololols_KinFitterInterface.hh"
+#include "UConn_Tools.h"
 
-#include "/afs/cern.ch/user/g/gkainth/phastPackages/xcheck_newTiS/tis_range.cc"
-#include "/afs/cern.ch/user/g/gkainth/phastPackages/xcheck_newTiS/tis_range.h"
-#include "/afs/cern.ch/user/g/gkainth/phastPackages/git_COMPASS/UConn_Tools.h"
+//#include "/afs/cern.ch/user/g/gkainth/phastPackages/xcheck_newTiS/tis_range.cc"
+//#include "/afs/cern.ch/user/g/gkainth/phastPackages/xcheck_newTiS/tis_range.h"
+//#include "/afs/cern.ch/user/g/gkainth/phastPackages/git_COMPASS/UConn_Tools.h"
 //#include "/afs/cern.ch/user/g/gkainth/phastPackages/flux_files/flux_Johannes/functions/TiS_range.cc"
 
 // ************************************************************************** //
@@ -95,6 +96,13 @@ void UserEvent970(PaEvent & e) { // begin event loop
     static TH1F* h97_gamma_E_EC1_ex = NULL;
     static TH1F* h97_gamma_E_EC2_ex = NULL;
 
+    static TH2F* h97_outMu_p_theta = NULL;
+    static TH2F* h97_outMu_p_phi   = NULL;
+    static TH2F* h97_gamma_p_theta = NULL;
+    static TH2F* h97_gamma_p_phi   = NULL;
+    static TH2F* h97_p_cam_p_theta = NULL;
+    static TH2F* h97_p_cam_p_phi   = NULL;
+
     static TTree* tree(NULL);
 
     //
@@ -125,11 +133,29 @@ void UserEvent970(PaEvent & e) { // begin event loop
     static double inMu_p;  // Magnitude of the beam muon momentum 
     static double inMu_E;  // Magnitude of the beam muon energy
     
-    static double outMu_pz; // Z component of the scattered muon momentum 
-    static double outMu_py; // Y component of the scattered muon momentum
-    static double outMu_px; // X component of the scattered muon momentum 
-    static double outMu_p;  // Magnitude of the scattered muon momentum 
-    static double outMu_E;  // Magnitude of the scattered muon energy
+    static double outMu_pz;    // Z component of the scattered muon momentum 
+    static double outMu_py;    // Y component of the scattered muon momentum
+    static double outMu_px;    // X component of the scattered muon momentum 
+    static double outMu_p;     // Magnitude of the scattered muon momentum 
+    static double outMu_E;     // Magnitude of the scattered muon energy
+    static double outMu_theta; // Polar angle of the scattered muon
+    static double outMu_phi;   // Azimuthal angle of the scattered muon 
+
+    static double gamma_pz;    // Z component of the real photon momentum
+    static double gamma_py;    // Y component of the real photon momentum
+    static double gamma_px;    // X component of the real photon momentum
+    static double gamma_p;     // Magnitude of the real photon momentum
+    static double gamma_E;     // Magnitude of the real photon energy
+    static double gamma_theta; // Polar angle of the real photon
+    static double gamma_phi;   // Azimuthal angle of the real photon
+
+    static double p_cam_pz;    // Z component of the camera proton momentum
+    static double p_cam_py;    // Y component of the camera proton momentum
+    static double p_cam_px;    // X component of the camera proton momentum
+    static double p_cam_p;     // Magnitude of the camera proton momentum
+    static double p_cam_E;     // Magnitude of the camera proton energy 
+    static double p_cam_theta; // Polar angle of the camera proton 
+    static double p_cam_phi;   // Azimuthal angle of the camera proton
 
     static double y;   // fractional energy loss of the incoming lepton 
     static double nu;  // energy of the virtual photon 
@@ -143,6 +169,13 @@ void UserEvent970(PaEvent & e) { // begin event loop
     // the missing energy or on the missing mass of a particle that is assumed to be a proton
     static double E_miss; 
     static double M2_miss; 
+
+    // Kinematic fit
+    static TLorentzVector inMu_fit;
+    static TLorentzVector outMu_fit;
+    static TLorentzVector proton_fit;
+    static TLorentzVector target_fit;
+    static TLorentzVector gamma_fit;
 
     // Event selection flags 
     bool trig_flag  = false; 
@@ -200,6 +233,13 @@ void UserEvent970(PaEvent & e) { // begin event loop
         h97_gamma_E_EC0_ex = new TH1F("h97_E_EC0_ex", "Photon Energy ECal 0 - After Excl. Cuts; E_{#gamma} [GeV]; Counts", 100, 0, 50);
         h97_gamma_E_EC1_ex = new TH1F("h97_E_EC1_ex", "Photon Energy ECal 1 - After Excl. Cuts; E_{#gamma} [GeV]; Counts", 100, 0, 100);
         h97_gamma_E_EC2_ex = new TH1F("h97_E_EC2_ex", "Photon Energy ECal 2 - After Excl. Cuts; E_{#gamma} [GeV]; Counts", 100, 0, 200);
+
+        h97_outMu_p_theta = new TH2F("h97_outMu_p_theta", "#mu'; P [GeV/c]; #theta [rad]", 100, 0, 200, 100, 0, 0.15);
+        h97_outMu_p_phi   = new TH2F("h97_outMu_p_phi", "#mu'; P [GeV/c]; #phi [rad]", 100, 0, 200, 100, -5, 5);
+        h97_gamma_p_theta = new TH2F("h97_gamma_p_theta", "#gamma; P [GeV/c]; #theta [rad]", 100, 0, 200, 100, 0, 0.5);
+        h97_gamma_p_phi   = new TH2F("h97_gamma_p_phi", "#gamma; P [GeV/c]; #phi [rad]", 100, 0, 200, 100, -5, 5);
+        h97_p_cam_p_theta = new TH2F("h97_p_cam_p_theta", "P'; P [GeV/c]; #theta [rad]", 100, 0, 20, 100, 0, 4);
+        h97_p_cam_p_phi   = new TH2F("h97_p_cam_p_phi", "P'; P [GeV/c]; #phi [rad]", 100, 0, 20, 100, -5, 5);
 
         //
         // Ntuple definition 
@@ -276,19 +316,21 @@ void UserEvent970(PaEvent & e) { // begin event loop
 
     //*******************************************
     // Initialize variables, extra flags and check time in spill (time in spill cut is applied later not here)    
-    //eventFlags.createFlag("Q2_DIS_flag", "No. of events where Q2 > 0.5");
+    eventFlags.createFlag("Q2_DIS_flag", "No. of events where Q2 > 0.5");
     //eventFlags.createFlag("y_DIS_flag", "No. of events where 0.01 < y < 0.99");
-    eventFlags.createFlag("Q2_flag", "No. of events where 1 < Q2 < 10");
-    eventFlags.createFlag("y_flag", "No. of events where 0.05 < y < 0.9");
+    //eventFlags.createFlag("Q2_flag", "No. of events where 1 < Q2 < 10");
+    //eventFlags.createFlag("y_flag", "No. of events where 0.05 < y < 0.9");
 
     eventFlags.createFlag("singleTrack_flag", "No. of events where primary vertex only has one outgoing track");
     eventFlags.createFlag("nCls_flag", "No. of events where multiple clusters are found in ECal 0, 1 or 2 only");
     eventFlags.createFlag("singleCl_flag", "No. of events where there is only a single cluster in the ECals");
     eventFlags.createFlag("proton_flag", "No. of events where proton candidates have 0.1 < beta < 0.95");
+    eventFlags.createFlag("passHodo_flag", "No. of events where scattered muon passes Hodoscope check");
     eventFlags.createFlag("delta_pt_flag", "No. of events where |delta_pt| < 0.3 GeV/c");
     eventFlags.createFlag("delta_phi_flag", "No. of events where |delta_phi| < 0.4 rad");
     eventFlags.createFlag("delta_Z_flag", "No. of events where |delta_Z| < 16 cm");
     eventFlags.createFlag("M2x_flag", "No. of events where |(M_x)^2| < 0.3 (GeV/c^2)^2");
+    eventFlags.createFlag("passFit_flag", "No. of events where kinematic fit converged sucessfully");
     eventFlags.createFlag("nCombo_flag", "No. of events where a vertex, photon and proton combination satisfies exclusivity conditions");
     eventFlags.resetFlags(); // Reset all event statistic counter flags to false
      
@@ -301,8 +343,8 @@ void UserEvent970(PaEvent & e) { // begin event loop
 
     if (Run != LastRun) { // Reinitialize HodoHelper and tis_range only if the run number changes 
         HodoHelper = & PaHodoHelper::Init("", true);  
-        //tis_range  = new TiSRange("/Users/gursimran/cern/phastPackages/flux_files/flux_Johannes/2016/flux_files");
-        tis_range  = new TiSRange("/afs/cern.ch/user/g/gkainth/phastPackages/flux_files/flux_Johannes/2016/flux_files");
+        tis_range  = new TiSRange("/Users/gursimran/cern/phastPackages/flux_files/flux_Johannes/2016/flux_files");
+        //tis_range  = new TiSRange("/afs/cern.ch/user/g/gkainth/phastPackages/flux_files/flux_Johannes/2016/flux_files");
         //Set_TiSrange("/afs/cern.ch/user/g/gkainth/phastPackages/flux_files/flux_Johannes/2016/flux_files", Run, Run);
         LastRun = Run;  // Update LastRun to the current run number
     }
@@ -311,11 +353,6 @@ void UserEvent970(PaEvent & e) { // begin event loop
     cam_inst= & PaCamera::GetInstance();
     cam_inst->NewEvent(e);
 
-    //*******************************************
-    // Debug statements ... (1/2)
-    //printDebug("     ");
-    //printDebug("*** Run: " + std::to_string(Run) + ", spill: " + std::to_string(Spill) + ", event: " + std::to_string(EvtInSpill) + " ***");
-    
     //*******************************************  
     eventFlags.setFlagByName("allEvts_flag", true);
     
@@ -339,8 +376,10 @@ void UserEvent970(PaEvent & e) { // begin event loop
       static PaTPar Par_beam;
 
 			static BeamFluxParams beamParams; // Create an instance of BeamFluxParams
-			flux_flag = beamFluxCheck(e, v, iv, Run, TiS_flag, beamParams, beam, beam_track, Par_beam, eventFlags);
-			if (!flux_flag) continue;  
+      // No TiS check yet for event selection so let it be true for all events 
+      // Will actually make a cut on the TiS later  
+			flux_flag = beamFluxCheck(e, v, iv, Run, true, beamParams, beam, beam_track, Par_beam, eventFlags);
+			if (!flux_flag) continue;   
 
       //*******************************************
       // Store info about scattered muon (outMu)
@@ -355,9 +394,9 @@ void UserEvent970(PaEvent & e) { // begin event loop
 
       //*******************************************
       // Kinematic variables ... (1/2)
-      TLorentzVector inMu_TL  = Par_beam.LzVec(M_mu); 
-      TLorentzVector outMu_TL = Par_outMu.LzVec(M_mu);  
-      TLorentzVector q        = (inMu_TL - outMu_TL); // four momentum of the virtual photon
+      const TLorentzVector inMu_TL  = Par_beam.LzVec(M_mu); 
+      const TLorentzVector outMu_TL = Par_outMu.LzVec(M_mu);  
+      const TLorentzVector q        = (inMu_TL - outMu_TL); // four momentum of the virtual photon
       TLorentzVector targ_TL;
 
       targ_TL.SetPxPyPzE(0,0,0,M_p);
@@ -367,28 +406,17 @@ void UserEvent970(PaEvent & e) { // begin event loop
       W2  = PaAlgo::W2 (inMu_TL, outMu_TL);
       xbj = PaAlgo::xbj (inMu_TL, outMu_TL); //xbj = Q2/(2*q*targ_TL);
 
-      // Current kinematic cuts may be tightened after the kinematically constrained fit is applied 
-      bool test_flag = false; 
-      //if (Q2 < 0.5) continue; // inclusive Q2 cut
-      if (Q2 >= 0.5) {test_flag = true;} 
-      if (!test_flag) continue; 
+      // Current kinematic cuts will be tightened after the kinematically constrained fit is applied 
+      if (Q2 < 0.5) continue; // inclusive Q2 cut
       eventFlags.setFlagByName("Q2_DIS_flag", true);
-      //if (Q2 < 1 || Q2 > 10) continue; // exclusive Q2 cut 
-      //eventFlags.setFlagByName("Q2_flag", true);
 
-      //if (y < 0.01 || y > 0.99) continue; // inclusive y cut 
+      //if (y < 0.01 || y > 0.99) continue; // inclusive y cut
       //eventFlags.setFlagByName("y_DIS_flag", true);
-      //if (y < 0.05 || y > 0.9) continue; // exclusive y cut 
-      //eventFlags.setFlagByName("y_flag", true);
 
-      double inMu_p = beam.ParInVtx(iv).Mom();
-      double outMu_p = outMu.ParInVtx(iv).Mom();
-       
       //*******************************************
       // Exclusive selection starts here  ...  
       // Only one outgoing particle (scattered proton and photon are detected using ECals and CAMERA so will not be found here)
       if (Nprim != 1) continue; 
-      //std::cout << std::endl <<"DEBUG :: " << Evt << " " << Q2 << " " << y << std::endl;
       eventFlags.setFlagByName("singleTrack_flag", true);  
 
       //*******************************************
@@ -480,44 +508,51 @@ void UserEvent970(PaEvent & e) { // begin event loop
       vector <CameraProton> proton_candidates = cam_inst->GetGoodCandidates(v); // vector holding all proton candidates
       vector <CameraProton> protons; // vector for storing candidates that satisfy 0.1 < beta < 0.95 
 
+      TVector3 R_vtx;
+      R_vtx.SetXYZ(v.Pos(0),v.Pos(1),v.Pos(2));
+
       for (auto proton: proton_candidates) {
         double beta = proton.beta; 
-        if (beta >= 0.1 || beta <= 0.95) {
-          protons.emplace_back(proton);
-        } 
+        if (beta < 0.1 || beta > 1) continue;
+
+        TLorentzVector p_camera_TL = proton.p4; 
+        if (p_camera_TL.Mag() == 0) continue; // ignore events where there is no TL vector
+        eventFlags.setFlagByName("proton_flag", true);
+
+        // Check that the selected scattered muon PASSES the hodoscope check 
+        int i_omu_check_hodo = HodoHelper->iMuPrim(v,false,false,true,true,15,true,true);  
+        if (i_omu_check_hodo == -1) continue; 
+        eventFlags.setFlagByName("passHodo_flag", true); 
+        
+        protons.emplace_back(proton);
       }
 
-      if (protons.empty()) continue; // skip events with no good protons 
-      eventFlags.setFlagByName("proton_flag", true); 
+      if (protons.empty()) continue; // skip events with no good protons
 
-      //*******************************************
+/*       //*******************************************
       // Check that all combintations of the vertex, photon and proton satisfy exclusivity conditions 
       // 4 exclusivity variables: detla_phi, delta_pt, delta_Z, M2x
       int nCombs = 0;
       vector <CameraProton> protons_excl; // vector for storing candidates which pass the exclusivity cuts 
 
       TLorentzVector p_miss_TL = targ_TL + inMu_TL - outMu_TL - gamma_TL;
+      double pt_miss = p_miss_TL.Perp(); 
       double phi_miss = p_miss_TL.Phi();
-      double pt_miss  = p_miss_TL.Vect().Pt(); 
-
-      TVector3 R_vtx;
-      R_vtx.SetXYZ(v.Pos(0),v.Pos(1),v.Pos(2));
-
-      // zero missing mass
-      double M2x = (inMu_TL + targ_TL - outMu_TL - gamma_TL - p_miss_TL) * (inMu_TL + targ_TL - outMu_TL - gamma_TL - p_miss_TL); 
 
       for (auto proton: protons) { 
         TLorentzVector p_camera_TL = proton.p4; 
+        double pt_camera = p_camera_TL.Perp(); 
+        double delta_pt  = pt_camera - pt_miss; // transverse momentum
+
         double phi_camera = p_camera_TL.Phi();
         double delta_phi  = phi_camera - phi_miss; // azimuthal angle
 
-        double pt_camera = p_camera_TL.Vect().Pt(); 
-        double delta_pt  = std::abs(pt_camera) - std::abs(pt_miss); // transverse momentum
-
         TVector3 posRingA = proton.Ahit.vec;
 			  TVector3 posRingB = proton.Bhit.vec;
-        double Z_miss     = cam_inst->GetZA(R_vtx, posRingA, posRingB, phi_miss);
-        double delta_Z    = posRingA.Z() - Z_miss; // z position of the hits in the inner CAMERA ring
+        double Z_inter    = cam_inst->GetZA(R_vtx, posRingA, posRingB, phi_camera);
+        double delta_Z    = posRingA.Z() - Z_inter; // z position of the hits in the inner CAMERA ring
+
+        double M2x = (p_miss_TL - p_camera_TL) * (p_miss_TL - p_camera_TL);
 
         h97_delta_phi->Fill(delta_phi);
         h97_delta_pt->Fill(delta_pt);
@@ -525,27 +560,60 @@ void UserEvent970(PaEvent & e) { // begin event loop
         h97_M2x->Fill(M2x);
 
         // Apply cuts on the exclusivity variables 
-        if (std::fabs(delta_pt) > 0.3) continue; 
+        if (std::fabs(delta_pt) > 0.3) continue;  
         eventFlags.setFlagByName("delta_pt_flag", true);
+        std::cout << std::endl << Evt << " " << delta_pt << std::endl; 
 
-        if (std::fabs(delta_phi) > 0.4) continue; 
-        eventFlags.setFlagByName("delta_phi_flag", true);
+        if (std::fabs(delta_phi) < 0.4) {
+          eventFlags.setFlagByName("delta_phi_flag", true);
+        } 
+        else if ((std::fabs(delta_phi) + TMath::Pi() * 2) < 0.4) {
+          eventFlags.setFlagByName("delta_phi_flag", true);
+        }
+        else if ((std::fabs(delta_phi) - TMath::Pi() * 2) < 0.4) {
+          eventFlags.setFlagByName("delta_phi_flag", true);
+        }
+        else continue; 
 
         if (std::fabs(delta_Z) > 16) continue; 
         eventFlags.setFlagByName("delta_Z_flag", true);
 
         if (std::fabs(M2x) > 0.3) continue; 
         eventFlags.setFlagByName("M2x_flag", true);
-        nCombs++; 
-      }
+
+        protons_excl.emplace_back(proton);
+        nCombs++;
+      } 
 
       if (protons_excl.empty()) continue;
-      eventFlags.setFlagByName("nCombo_flag", true);
+      eventFlags.setFlagByName("nCombo_flag", true); */
 
-/*       printDebug("    ", true);
-      printDebug("*** Run: " + std::to_string(Run) + ", spill: " + std::to_string(Spill) + ", event: " + std::to_string(EvtInSpill) + " ***", true);
-      printDebug("    Vertex: (" + std::to_string(Xprim) + ", " + std::to_string(Yprim) + ", " + std::to_string(Zprim) + ")", true);
-      printDebug("    No. protons: " + std::to_string(protons_excl.size()) + ", No. photons: " + std::to_string(Clus_gamma.size()), true); */
+/*       //*******************************************
+      // Perform the kinematic fit for current combination and save results 
+      TVector3 posRingA = proton.Ahit.vec;
+      TVector3 posRingB = proton.Bhit.vec;
+
+      static Fitter* FitInterface = &(Fitter::GetInstance());  
+      FitInterface->Init(R_vtx, beam_track, outMu_track, p_camera_TL, posRingA, posRingB); 
+      FitInterface->Add_Photon(Clus_gamma.front());
+      FitInterface->SetupFit();
+      FitInterface->DoFit();
+
+      TLorentzVector inMu_fit   = *(FitInterface->GetMuonIn()->getCurr4Vec());
+      TLorentzVector outMu_fit  = *(FitInterface->GetMuonOut()->getCurr4Vec());
+      TLorentzVector proton_fit = *(FitInterface->GetProtonOut()->getCurr4Vec());
+      TLorentzVector target_fit = *(FitInterface->GetProtonTarget()->getCurr4Vec());
+      TLorentzVector gamma_fit  = *(FitInterface->GetOutPhotons()[0]->getCurr4Vec());
+
+      TVector3 posRingA_fit = *(FitInterface->GetHitA()->getCurr3Vec());
+      TVector3 posRingB_fit = *(FitInterface->GetHitB()->getCurr3Vec());
+      TVector3 R_vtx_fit    = *(FitInterface->GetVertex()->getCurr3Vec());
+
+      double chi2; 
+      int ndf; 
+
+      bool fit_conv = FitInterface->GetFitOutput(chi2, ndf);
+      if (!fit_conv) continue; 
 
       //*******************************************
       // Fill histograms for ECal Energy after all exclusivity cuts
@@ -557,10 +625,10 @@ void UserEvent970(PaEvent & e) { // begin event loop
           if (ecalid == ecal1id) {h97_gamma_E_EC1_ex->Fill(cluster.E());}
           if (ecalid == ecal2id) {h97_gamma_E_EC2_ex->Fill(cluster.E());}
         }
-      }
+      } */
 
       //*******************************************
-      // Debug statements ... (2/2)
+      // Debug statements ...
       printDebug("     ");
       printDebug("*** Run: " + std::to_string(Run) + ", spill: " + std::to_string(Spill) + ", event: " + std::to_string(EvtInSpill) + " ***");
       printDebug("    Vertex: (" + std::to_string(Xprim) + ", " + std::to_string(Yprim) + ", " + std::to_string(Zprim) + ")");
@@ -570,11 +638,39 @@ void UserEvent970(PaEvent & e) { // begin event loop
 
       //*******************************************
       // Fill histrograms 
+      inMu_p  = beam_track.vTPar(0).Mom();
+      inMu_pz = beam_track.vTPar(0).Pz();
       inMu_py = beam_track.vTPar(0).Py();
       inMu_px = beam_track.vTPar(0).Px();
+      inMu_E  = inMu_TL.E();
 
+      outMu_p  = outMu_track.vTPar(0).Mom();
+      outMu_pz = outMu_track.vTPar(0).Pz();
       outMu_py = outMu_track.vTPar(0).Py();
       outMu_px = outMu_track.vTPar(0).Px();
+      outMu_E  = outMu_TL.E();
+
+      gamma_p  = gamma_TL.P();
+      gamma_pz = gamma_TL.Pz();
+      gamma_py = gamma_TL.Py();
+      gamma_px = gamma_TL.Px();
+      gamma_E  = gamma_TL.E();
+
+      for (auto proton: protons) {
+        TLorentzVector p_camera_TL = proton.p4;
+        p_cam_p  = p_camera_TL.P(); 
+        p_cam_pz = p_camera_TL.Pz();
+        p_cam_py = p_camera_TL.Py();
+        p_cam_px = p_camera_TL.Px();
+        p_cam_E = p_camera_TL.E();
+
+        p_cam_theta = acos(p_cam_pz / p_cam_p); // polar angle
+        p_cam_phi   = atan2(p_cam_py, p_cam_px);  // azimuthal angle
+        h97_p_cam_p_theta->Fill(p_cam_p,p_cam_theta);
+        h97_p_cam_p_phi->Fill(p_cam_p,p_cam_phi);
+
+      }
+
 
       h97_Zprim->Fill(Zprim);
       h97_Yprim->Fill(Yprim);
@@ -599,7 +695,19 @@ void UserEvent970(PaEvent & e) { // begin event loop
       h97_t->Fill(t);
 
       h97_E_miss->Fill(E_miss);
-      h97_M2_miss->Fill(M2_miss);     
+      h97_M2_miss->Fill(M2_miss);    
+
+      //*******************************************
+      // Plots for the Kyungseon COMPASS Report 
+      outMu_theta = acos(outMu_pz / outMu_p); // polar angle 
+      outMu_phi   = atan2(outMu_py, outMu_px);  // azimuthal angle 
+      h97_outMu_p_theta->Fill(outMu_p,outMu_theta);
+      h97_outMu_p_phi->Fill(outMu_p,outMu_phi);
+      
+      gamma_theta = acos(gamma_pz / gamma_p); // polar angle 
+      gamma_phi   = atan2(gamma_py, gamma_px);  // azimuthal angle
+      h97_gamma_p_theta->Fill(gamma_p,gamma_theta);
+      h97_gamma_p_phi->Fill(gamma_p,gamma_phi);
 
 		} // end loop over vertices 
 

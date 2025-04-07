@@ -61,11 +61,11 @@ struct EventFlags {
         flags.push_back({false, 0, "SI_flag", "No. of events where beam is detected by SI"});
         flags.push_back({false, 0, "crossCells_flag", "No. of events where beam crosses full target length"});
         flags.push_back({false, 0, "meantime_flag", "No. of events where beam track meantime is within flux requirements"});
-        flags.push_back({false, 0, "timeInSpill_flag", "No. of events where time in spill is within flux requirements"});
+        //flags.push_back({false, 0, "timeInSpill_flag", "No. of events where time in spill is within flux requirements"});
 		// outMu flags 
         flags.push_back({false, 0, "vtxInTarget_flag", "No. of events where the vertex is in the target"});
         flags.push_back({false, 0, "trigger_flag", "No. of events with MT, LT, OT or LAST physics triggers"});
-        flags.push_back({false, 0, "passHodo_flag", "No. of events where scattered muon passes Hodoscope check"});
+        //flags.push_back({false, 0, "passHodo_flag", "No. of events where scattered muon passes Hodoscope check"});
         flags.push_back({false, 0, "charge_flag", "No. of events where scattered muon has the same charge as the beam"});
         flags.push_back({false, 0, "zFirstLast_flag", "No. of events where first and last scattered muon z coord. are measured before and after SM1"});
     }
@@ -176,12 +176,14 @@ struct BeamFluxParams {
 
 // Define the function 
 bool beamFluxCheck(const PaEvent &e, const PaVertex &v, int vertexIndex, int Run, bool TiS_flag, 
-				const BeamFluxParams &params, PaParticle &beam, PaTrack &beam_track, PaTPar &Par_beam, 
-				EventFlags &flags) { // beamFlux loop begins 
-	
+				const BeamFluxParams &params, PaParticle &beam, PaTrack &beam_track, 
+				PaTPar &Par_beam, EventFlags &flags) { // beamFlux loop begins 
+
+// Keep just the signatures in a header file and move the body to a cc file 
+
 	// Check that there is an incoming muon associated with the vertex
-	int i_beam = v.InParticle(); 
-	if (i_beam == -1) { 
+	int i_beam = v.InParticle();  
+	if (i_beam == -1) {  
 		return false;
 	} 
 
@@ -193,7 +195,7 @@ bool beamFluxCheck(const PaEvent &e, const PaVertex &v, int vertexIndex, int Run
 	} 
 
 	// Check that the track has parameters
-	beam_track = e.vTrack(i_beam);
+	beam_track = e.vTrack(it_beam);
 	if (beam_track.NTPar() == 0) { 
 		return false;
 	} else {flags.setFlagByName("inMuTrack_flag", true);}
@@ -204,13 +206,15 @@ bool beamFluxCheck(const PaEvent &e, const PaVertex &v, int vertexIndex, int Run
 	} else {flags.setFlagByName("zFirst_flag", true);}
 
 	// Check that the beam momentum falls within acceptable range
-	double inMu_mom = beam.ParInVtx(vertexIndex).Mom();
+	//double inMu_mom = beam.ParInVtx(vertexIndex).Mom();
+	double inMu_mom = beam_track.vTPar(0).Mom();
 	if (inMu_mom < 140.0 || inMu_mom > 180.0) {
 		return false;
 	} else {flags.setFlagByName("momRange_flag", true);}
 
 	// Check that the beam momentum error falls within acceptable range
-	double inMu_momErr = sqrt(beam.ParInVtx(vertexIndex)(5,5))/(beam.ParInVtx(vertexIndex)(5)*beam.ParInVtx(vertexIndex)(5));
+	//double inMu_momErr = sqrt(beam.ParInVtx(vertexIndex)(5,5))/(beam.ParInVtx(vertexIndex)(5)*beam.ParInVtx(vertexIndex)(5));
+	double inMu_momErr = sqrt(beam_track.vTPar(0)(5,5))/(beam_track.vTPar(0)(5)*beam_track.vTPar(0)(5));
   	if (inMu_momErr > 0.025*inMu_mom) {
 		return false;
 	} else {flags.setFlagByName("momErr_flag", true);}
@@ -232,8 +236,8 @@ bool beamFluxCheck(const PaEvent &e, const PaVertex &v, int vertexIndex, int Run
 	// Check that the beam crosses the full target length 
 	// PaAlgo::CrossCells(t_beam.vTPar(0),run, Rmax, Ymax, tgt_zmin, tgt_zmax, RmaxMC) 
 	Par_beam = beam.ParInVtx(vertexIndex); // beam parameters at the vertex
-  	if (!(PaAlgo::CrossCells(beam_track.vTPar(0), Run, params.Rmax, params.Ymax, params.tgt_zmin, params.tgt_zmax, params.RmaxMC))) {
-		return false;
+  	if (!PaAlgo::CrossCells(beam_track.vTPar(0), Run, params.Rmax, params.Ymax, params.tgt_zmin, params.tgt_zmax, params.RmaxMC)) {
+		return false; 
 	} else {flags.setFlagByName("crossCells_flag", true);}
 
 	// Check that the track meantime is within flux requirements
@@ -242,10 +246,10 @@ bool beamFluxCheck(const PaEvent &e, const PaVertex &v, int vertexIndex, int Run
 		return false;
 	} else {flags.setFlagByName("meantime_flag", true);}
 
-	// Time in spill is within flux requirements
-	if (!TiS_flag) {
+ 	// Time in spill is within flux requirements
+ 	if (!TiS_flag) {
 		return false; 
-	} else {flags.setFlagByName("timeInSpill_flag", true);}
+	} else {flags.setFlagByName("timeInSpill_flag", true);} 
 
 	// Return true if all conditions are met
 	return true;
@@ -290,11 +294,11 @@ bool outMuCheck(const PaEvent &e, const PaVertex &v, int vertexIndex, int Run, c
 		return false; 
 	}
 
-	// Check that the vertex is in the target (same whether you use beam or scattered muon since they have the same vertex)
+	// Check that the vertex is in the target
 	const PaTPar& Par_beam = beam.ParInVtx(vertexIndex); // beam parameters at the vertex
 	const PaParticle & outMu_noHodo = e.vParticle(i_omu); 
 	const PaTPar& Par_outMu_noHodo = outMu_noHodo.ParInVtx(vertexIndex); // scattered muon parameters at the vertex 
-	if(!(PaAlgo::InTarget(Par_beam,'O',Run, params.Rmax, params.Ymax, params.tgt_zmin, params.tgt_zmax, params.RmaxMC))) {
+	if(!PaAlgo::InTarget(Par_beam,'O',Run, params.Rmax, params.Ymax, params.tgt_zmin, params.tgt_zmax, params.RmaxMC)) {
 		return false; 
 	} else {flags.setFlagByName("vtxInTarget_flag", true);}
 
@@ -303,19 +307,21 @@ bool outMuCheck(const PaEvent &e, const PaVertex &v, int vertexIndex, int Run, c
 		return false; 
 	} else {flags.setFlagByName("trigger_flag", true);}
 
-	// Get the index for the scattered muon IF IT PASSES the hodoscope check 
+/* 	// Get the index for the scattered muon IF IT PASSES the hodoscope check 
 	int i_omu_check_hodo = HodoHelper->iMuPrim(v,false,false,true,true,15,true,true);  
-	//int i_omu_check_hodo = HodoHelper->iMuPrim(v,false,true,true,true,15,true,true);
 	// if scattered muon passed the hodoscope use the corresponding index, if not proceed with other index 
 	if (i_omu_check_hodo == -1) {
 		return false; 
 	} else {flags.setFlagByName("passHodo_flag", true);}
-	i_omu = i_omu_check_hodo;
+	i_omu = i_omu_check_hodo; */
 
 	// Check that the scattered muon has the same charge as the beam  
 	outMu = e.vParticle(i_omu);
-	// if outMu.Q or beam.Q return -777 it means the assocaited track was reconstructed in a field free region (charge is unkown)
-	if (outMu.Q() != beam.Q() || outMu.Q() == -777 || beam.Q() == -777) {
+	// beam.Q() is not safe as it may return -777 which means the associated track was reconstructed in a field free region (charge is unkown)
+	TVector3 SM2center(0, 0, 1825);
+    const TVector3 SM2field = PaSetup::Ref().MagField(SM2center);
+    const int inMuQ = SM2field(1) < 0 ? 1 : -1;
+	if (outMu.Q() != inMuQ) {
 		return false; 
 	} else {flags.setFlagByName("charge_flag", true);}
 
