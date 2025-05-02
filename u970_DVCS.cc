@@ -14,17 +14,18 @@
 #include "PaEvent.h" 
 #include "G3part.h" 
 #include "PaHodoHelper.h"
+#include <utility>
 
 #include "ecal_time_cuts.h"
 #include "Tools_Camera.hh"
 
-#include "/Users/gursimran/cern/phastPackages/xcheck_newTiS/tis_range.cc"
-#include "/Users/gursimran/cern/phastPackages/xcheck_newTiS/tis_range.h"
+//#include "/Users/gursimran/cern/phastPackages/xcheck_newTiS/tis_range.cc"
+//#include "/Users/gursimran/cern/phastPackages/xcheck_newTiS/tis_range.h"
 #include "Toololols_KinFitterInterface.hh"
 #include "UConn_Tools.h"
 
-//#include "/afs/cern.ch/user/g/gkainth/phastPackages/xcheck_newTiS/tis_range.cc"
-//#include "/afs/cern.ch/user/g/gkainth/phastPackages/xcheck_newTiS/tis_range.h"
+#include "/afs/cern.ch/user/g/gkainth/phastPackages/xcheck_newTiS/tis_range.cc"
+#include "/afs/cern.ch/user/g/gkainth/phastPackages/xcheck_newTiS/tis_range.h"
 //#include "/afs/cern.ch/user/g/gkainth/phastPackages/git_COMPASS/UConn_Tools.h"
 //#include "/afs/cern.ch/user/g/gkainth/phastPackages/flux_files/flux_Johannes/functions/TiS_range.cc"
 
@@ -170,12 +171,19 @@ void UserEvent970(PaEvent & e) { // begin event loop
     static double E_miss; 
     static double M2_miss; 
 
-    // Kinematic fit
-    static TLorentzVector inMu_fit;
-    static TLorentzVector outMu_fit;
-    static TLorentzVector proton_fit;
-    static TLorentzVector target_fit;
-    static TLorentzVector gamma_fit;
+    // Exclusivity variables 
+    static double delta_phi; 
+    static double delta_pt;
+    static double delta_Z;
+    static double M2x;
+
+    // Kinematic fit;
+    static double Q2_fit = -999; 
+    static double y_fit  = -999;
+    static double nu_fit = -999; 
+    static double x_fit  = -999;
+    static double W2_fit = -999;
+    static double t_fit  = -999;
 
     // Event selection flags 
     bool trig_flag  = false; 
@@ -257,11 +265,14 @@ void UserEvent970(PaEvent & e) { // begin event loop
         tree->Branch("inMu_py", &inMu_py, "inMu_py/D");
         tree->Branch("inMu_px", &inMu_px, "inMu_px/D");
         tree->Branch("inMu_E",  &inMu_E,  "inMu_E/D");
- 
+
+        tree->Branch("outMu_p", &outMu_p, "outMu_p/D");
         tree->Branch("outMu_pz", &outMu_pz, "outMu_pz/D");
         tree->Branch("outMu_py", &outMu_py, "outMu_py/D");
         tree->Branch("outMu_px", &outMu_px, "outMu_px/D");
         tree->Branch("outMu_E",  &outMu_E,  "outMu_E/D");
+        tree->Branch("outMu_theta",  &outMu_theta,  "outMu_theta/D");
+        tree->Branch("outMu_phi",  &outMu_phi,  "outMu_phi/D");
 
         tree->Branch("y",   &y,   "y/D");
         tree->Branch("nu",  &nu,  "nu/D");
@@ -272,6 +283,19 @@ void UserEvent970(PaEvent & e) { // begin event loop
 
         tree->Branch("E_miss",  &E_miss,  "E_miss/D");
         tree->Branch("M2_miss", &M2_miss, "M2_miss/D");
+
+        tree->Branch("gamma_p",     &gamma_p,     "gamma_p/D");
+        tree->Branch("gamma_theta", &gamma_theta, "gamma_theta/D");
+        tree->Branch("gamma_phi",   &gamma_phi,   "gamma_phi/D");
+
+        tree->Branch("p_cam_p",     &p_cam_p,     "p_cam_p/D");
+        tree->Branch("p_cam_theta", &p_cam_theta, "p_cam_theta/D");
+        tree->Branch("p_cam_phi",   &p_cam_phi,   "p_cam_phi/D");
+
+        tree->Branch("delta_phi", &delta_phi, "delta_phi/D");
+        tree->Branch("delta_pt",  &delta_pt,  "delta_pt/D");
+        tree->Branch("delta_Z",   &delta_Z,   "delta_Z/D");
+        tree->Branch("M2x",       &M2x,       "M2x/D");
 
         first = false;
     } // end of histogram booking
@@ -318,22 +342,38 @@ void UserEvent970(PaEvent & e) { // begin event loop
     // Initialize variables, extra flags and check time in spill (time in spill cut is applied later not here)    
     eventFlags.createFlag("Q2_DIS_flag", "No. of events where Q2 > 0.5");
     //eventFlags.createFlag("y_DIS_flag", "No. of events where 0.01 < y < 0.99");
-    //eventFlags.createFlag("Q2_flag", "No. of events where 1 < Q2 < 10");
-    //eventFlags.createFlag("y_flag", "No. of events where 0.05 < y < 0.9");
 
     eventFlags.createFlag("singleTrack_flag", "No. of events where primary vertex only has one outgoing track");
-    eventFlags.createFlag("nCls_flag", "No. of events where multiple clusters are found in ECal 0, 1 or 2 only");
+    eventFlags.createFlag("clAll_flag", "No. of events that have any clusters");
+    eventFlags.createFlag("clNeutral_flag", "No. of events where clusters are not associated with charged tracks");
+    eventFlags.createFlag("clTime_flag", "No. of events where cluster timing is within requirements");
+    eventFlags.createFlag("nCls_flag", "No. of events where clusters are found in ECal 0, 1 or 2 only");
     eventFlags.createFlag("singleCl_flag", "No. of events where there is only a single cluster in the ECals");
-    eventFlags.createFlag("proton_flag", "No. of events where proton candidates have 0.1 < beta < 0.95");
+    eventFlags.createFlag("protonsAll_flag", "No. of events with protons (all candidates)");
+    eventFlags.createFlag("proton_flag", "No. of events where proton candidates have 0.1 < beta < 1");
+    eventFlags.createFlag("protonMom_flag", "No. of events where proton passes momentum check");
+
+    eventFlags.createFlag("TiS_flag", "No. of events where time in spill is within flux requirements");
     eventFlags.createFlag("passHodo_flag", "No. of events where scattered muon passes Hodoscope check");
+    eventFlags.createFlag("Q2_DVCS_flag", "No. of events where 1 < Q2 < 10");
+    eventFlags.createFlag("y_DVCS_flag", "No. of events where 0.05 < y < 0.9");
+
     eventFlags.createFlag("delta_pt_flag", "No. of events where |delta_pt| < 0.3 GeV/c");
     eventFlags.createFlag("delta_phi_flag", "No. of events where |delta_phi| < 0.4 rad");
     eventFlags.createFlag("delta_Z_flag", "No. of events where |delta_Z| < 16 cm");
     eventFlags.createFlag("M2x_flag", "No. of events where |(M_x)^2| < 0.3 (GeV/c^2)^2");
+
     eventFlags.createFlag("passFit_flag", "No. of events where kinematic fit converged sucessfully");
+    eventFlags.createFlag("Q2Fit_flag", "No. of events where 1 < Q2_fit < 10");
+    eventFlags.createFlag("yFit_flag", "No. of events where 0.05 < y_fit < 0.9");
+    eventFlags.createFlag("tFit_flag", "No. of events where -0.08 < t_fit < -0.64");
+    eventFlags.createFlag("nuFit_flag", "No. of events where 10 < nu_fit < 144");
+    eventFlags.createFlag("kinFitAll_flag", "No. of events surviving all kinematic cuts (Q2, y, t nu)");
+
     eventFlags.createFlag("nCombo_flag", "No. of events where a vertex, photon and proton combination satisfies exclusivity conditions");
-    eventFlags.resetFlags(); // Reset all event statistic counter flags to false
      
+     eventFlags.resetFlags(); // Reset all event statistic counter flags to false
+
     Run         = e.RunNum();
     Evt         = e.UniqueEvNum();
     Year        = e.Year();
@@ -343,8 +383,8 @@ void UserEvent970(PaEvent & e) { // begin event loop
 
     if (Run != LastRun) { // Reinitialize HodoHelper and tis_range only if the run number changes 
         HodoHelper = & PaHodoHelper::Init("", true);  
-        tis_range  = new TiSRange("/Users/gursimran/cern/phastPackages/flux_files/flux_Johannes/2016/flux_files");
-        //tis_range  = new TiSRange("/afs/cern.ch/user/g/gkainth/phastPackages/flux_files/flux_Johannes/2016/flux_files");
+        //tis_range  = new TiSRange("/Users/gursimran/cern/phastPackages/flux_files/flux_Johannes/2016/flux_files");
+        tis_range  = new TiSRange("/afs/cern.ch/user/g/gkainth/phastPackages/flux_files/flux_Johannes/2016/flux_files");
         //Set_TiSrange("/afs/cern.ch/user/g/gkainth/phastPackages/flux_files/flux_Johannes/2016/flux_files", Run, Run);
         LastRun = Run;  // Update LastRun to the current run number
     }
@@ -408,7 +448,7 @@ void UserEvent970(PaEvent & e) { // begin event loop
 
       // Current kinematic cuts will be tightened after the kinematically constrained fit is applied 
       if (Q2 < 0.5) continue; // inclusive Q2 cut
-      eventFlags.setFlagByName("Q2_DIS_flag", true);
+      eventFlags.setFlagByName("Q2_DIS_flag", true); 
 
       //if (y < 0.01 || y > 0.99) continue; // inclusive y cut
       //eventFlags.setFlagByName("y_DIS_flag", true);
@@ -440,9 +480,12 @@ void UserEvent970(PaEvent & e) { // begin event loop
       for (int iclus = 0; iclus < e.NCaloClus(); iclus++) { // Begin loop over clusters
         const PaCaloClus & cl = e.vCaloClus(iclus);
         int icalo = cl.iCalorim();
+        eventFlags.setFlagByName("clAll_flag", true);
 
         if (cl.iTrack() != -1) continue; // cluster needs to have no associated charged track
+        eventFlags.setFlagByName("clNeutral_flag", true);
         if (!EcalTimeCut(beam_track, cl, Run) && !e.IsMC()) continue; // check timing of the clusters
+        eventFlags.setFlagByName("clTime_flag", true);
  
         if (plotECalEnergy) { // Fill the reconstructed energy distributions for each ECal
           if (icalo == ecal0id) h97_gamma_E_EC0->Fill(cl.E());
@@ -495,12 +538,11 @@ void UserEvent970(PaEvent & e) { // begin event loop
 
         gamma_TL.SetPxPyPzE(cl_E * phdx / phL, cl_E * phdy / phL, cl_E * phdz / phL, cl_E);
       }
-
+ 
       //*******************************************
       // Kinematic variables ... (2/2)
       t       = (q - gamma_TL).M2();
       E_miss  = nu - gamma_TL.E() + t/(2 * M_p); // Missing energy (assuming proton)
-      M2_miss = (2 * M_p * (nu - gamma_TL.E())) + (M_p * M_p) + t; // Missing mass squared (assuming proton) 
 
       //*******************************************
       // Store info about scattered proton candidates (check CAMERA)
@@ -508,72 +550,83 @@ void UserEvent970(PaEvent & e) { // begin event loop
       vector <CameraProton> proton_candidates = cam_inst->GetGoodCandidates(v); // vector holding all proton candidates
       vector <CameraProton> protons; // vector for storing candidates that satisfy 0.1 < beta < 0.95 
 
+      int counter = 0; 
       TVector3 R_vtx;
       R_vtx.SetXYZ(v.Pos(0),v.Pos(1),v.Pos(2));
 
       for (auto proton: proton_candidates) {
+        eventFlags.setFlagByName("protonsAll_flag", true);
         double beta = proton.beta; 
-        if (beta < 0.1 || beta > 1) continue;
+        //std::cout << std::endl << "DEBUG::Beta " << beta << std::endl;
+
+        bool beta_flag = false; 
+        if (beta >= 0.1 || beta <= 1) {beta_flag=true;}
+        if (!beta_flag) continue;
+        counter += 1; 
+        eventFlags.setFlagByName("proton_flag", true);
 
         TLorentzVector p_camera_TL = proton.p4; 
         if (p_camera_TL.Mag() == 0) continue; // ignore events where there is no TL vector
-        eventFlags.setFlagByName("proton_flag", true);
+        eventFlags.setFlagByName("protonMom_flag", true);
 
-        // Check that the selected scattered muon PASSES the hodoscope check 
-        int i_omu_check_hodo = HodoHelper->iMuPrim(v,false,false,true,true,15,true,true);  
-        if (i_omu_check_hodo == -1) continue; 
-        eventFlags.setFlagByName("passHodo_flag", true); 
-        
-        protons.emplace_back(proton);
+        protons.emplace_back(std::move(proton));
       }
+      //std::cout << std::endl << "DEBUG::ProtonNum " << counter << std::endl; 
 
       if (protons.empty()) continue; // skip events with no good protons
 
-/*       //*******************************************
+      //*******************************************
       // Check that all combintations of the vertex, photon and proton satisfy exclusivity conditions 
       // 4 exclusivity variables: detla_phi, delta_pt, delta_Z, M2x
-      int nCombs = 0;
+/*       int nCombs = 0;
       vector <CameraProton> protons_excl; // vector for storing candidates which pass the exclusivity cuts 
 
       TLorentzVector p_miss_TL = targ_TL + inMu_TL - outMu_TL - gamma_TL;
-      double pt_miss = p_miss_TL.Perp(); 
+      double pt_miss = p_miss_TL.Pt(); 
       double phi_miss = p_miss_TL.Phi();
 
+      int i_omu_check_hodo = HodoHelper->iMuPrim(v,false,false,true,true,15,true,true); 
       for (auto proton: protons) { 
         TLorentzVector p_camera_TL = proton.p4; 
-        double pt_camera = p_camera_TL.Perp(); 
-        double delta_pt  = pt_camera - pt_miss; // transverse momentum
+        double pt_camera = p_camera_TL.Pt(); 
+        delta_pt = pt_camera - pt_miss; // transverse momentum
 
         double phi_camera = p_camera_TL.Phi();
-        double delta_phi  = phi_camera - phi_miss; // azimuthal angle
+        delta_phi = phi_camera - phi_miss; // azimuthal angle
 
         TVector3 posRingA = proton.Ahit.vec;
 			  TVector3 posRingB = proton.Bhit.vec;
-        double Z_inter    = cam_inst->GetZA(R_vtx, posRingA, posRingB, phi_camera);
-        double delta_Z    = posRingA.Z() - Z_inter; // z position of the hits in the inner CAMERA ring
+        double Z_inter = cam_inst->GetZA(R_vtx, posRingA, posRingB, phi_camera);
+        delta_Z = posRingA.Z() - Z_inter; // z position of the hits in the inner CAMERA ring
 
-        double M2x = (p_miss_TL - p_camera_TL) * (p_miss_TL - p_camera_TL);
+        M2x = (p_miss_TL - p_camera_TL) * (p_miss_TL - p_camera_TL);
 
         h97_delta_phi->Fill(delta_phi);
         h97_delta_pt->Fill(delta_pt);
         h97_delta_Z->Fill(delta_Z);
         h97_M2x->Fill(M2x);
 
+        if (!TiS_flag) continue; 
+        eventFlags.setFlagByName("TiS_flag", true);
+
+        // Check that the selected scattered muon PASSES the hodoscope check  
+        if (i_omu_check_hodo == -1) continue; 
+        eventFlags.setFlagByName("passHodo_flag", true); 
+
+        if (Q2 < 1 || Q2 > 10) continue; 
+        eventFlags.setFlagByName("Q2_DVCS_flag", true);
+
+        if (y < 0.05 || y > 0.9) continue; 
+        eventFlags.setFlagByName("y_DVCS_flag", true);
+
         // Apply cuts on the exclusivity variables 
         if (std::fabs(delta_pt) > 0.3) continue;  
         eventFlags.setFlagByName("delta_pt_flag", true);
-        std::cout << std::endl << Evt << " " << delta_pt << std::endl; 
+        //std::cout << std::endl << Evt << " " << delta_pt << std::endl; 
 
-        if (std::fabs(delta_phi) < 0.4) {
-          eventFlags.setFlagByName("delta_phi_flag", true);
-        } 
-        else if ((std::fabs(delta_phi) + TMath::Pi() * 2) < 0.4) {
-          eventFlags.setFlagByName("delta_phi_flag", true);
-        }
-        else if ((std::fabs(delta_phi) - TMath::Pi() * 2) < 0.4) {
-          eventFlags.setFlagByName("delta_phi_flag", true);
-        }
-        else continue; 
+        double delta_phi_norm = TVector2::Phi_mpi_pi(delta_phi); // use normalized delta_phi values for the cut 
+        if (std::fabs(delta_phi_norm) > 0.4) continue;
+        eventFlags.setFlagByName("delta_phi_flag", true);
 
         if (std::fabs(delta_Z) > 16) continue; 
         eventFlags.setFlagByName("delta_Z_flag", true);
@@ -582,38 +635,86 @@ void UserEvent970(PaEvent & e) { // begin event loop
         eventFlags.setFlagByName("M2x_flag", true);
 
         protons_excl.emplace_back(proton);
-        nCombs++;
-      } 
+        nCombs++; 
+      } */
 
-      if (protons_excl.empty()) continue;
-      eventFlags.setFlagByName("nCombo_flag", true); */
+/*       if (!((Q2 < 10 && Q2 > 1) && (y > 0.05 && y < 0.9) && (nu > 10 && nu < 144) && (t > -0.64 && t < -0.08))) continue; 
+      for (auto proton: protons_excl) {
+        TLorentzVector p_camera_TL = proton.p4;
+        M2_miss = (inMu_TL + targ_TL - outMu_TL - gamma_TL - p_camera_TL)*(inMu_TL + targ_TL - outMu_TL - gamma_TL - p_camera_TL); 
+      }    */
 
-/*       //*******************************************
+      //if (protons_excl.empty()) continue;
+
+      //*******************************************
       // Perform the kinematic fit for current combination and save results 
-      TVector3 posRingA = proton.Ahit.vec;
-      TVector3 posRingB = proton.Bhit.vec;
+      for (auto proton: protons) {
+        TLorentzVector p_camera_TL = proton.p4;
+        TVector3 posRingA = proton.Ahit.vec;
+        TVector3 posRingB = proton.Bhit.vec;
 
-      static Fitter* FitInterface = &(Fitter::GetInstance());  
-      FitInterface->Init(R_vtx, beam_track, outMu_track, p_camera_TL, posRingA, posRingB); 
-      FitInterface->Add_Photon(Clus_gamma.front());
-      FitInterface->SetupFit();
-      FitInterface->DoFit();
+        static Fitter* FitInterface = &(Fitter::GetInstance());
+        FitInterface->Init(R_vtx, beam_track, outMu_track, p_camera_TL, posRingA, posRingB); 
+        FitInterface->Add_Photon(Clus_gamma.front());
+        FitInterface->SetupFit();
+        FitInterface->DoFit(0, 1000);
 
-      TLorentzVector inMu_fit   = *(FitInterface->GetMuonIn()->getCurr4Vec());
-      TLorentzVector outMu_fit  = *(FitInterface->GetMuonOut()->getCurr4Vec());
-      TLorentzVector proton_fit = *(FitInterface->GetProtonOut()->getCurr4Vec());
-      TLorentzVector target_fit = *(FitInterface->GetProtonTarget()->getCurr4Vec());
-      TLorentzVector gamma_fit  = *(FitInterface->GetOutPhotons()[0]->getCurr4Vec());
+        TLorentzVector inMuFit_TL   = *(FitInterface->GetMuonIn()->getCurr4Vec());
+        TLorentzVector outMuFit_TL  = *(FitInterface->GetMuonOut()->getCurr4Vec());
+        TLorentzVector protonFit_TL = *(FitInterface->GetProtonOut()->getCurr4Vec());
+        TLorentzVector targetFit_TL = *(FitInterface->GetProtonTarget()->getCurr4Vec());
+        TLorentzVector gammaFit_TL  = *(FitInterface->GetOutPhotons()[0]->getCurr4Vec());
 
-      TVector3 posRingA_fit = *(FitInterface->GetHitA()->getCurr3Vec());
-      TVector3 posRingB_fit = *(FitInterface->GetHitB()->getCurr3Vec());
-      TVector3 R_vtx_fit    = *(FitInterface->GetVertex()->getCurr3Vec());
+        TVector3 posRingA_fit = *(FitInterface->GetHitA()->getCurr3Vec());
+        TVector3 posRingB_fit = *(FitInterface->GetHitB()->getCurr3Vec());
+        TVector3 R_vtx_fit    = *(FitInterface->GetVertex()->getCurr3Vec()); 
 
-      double chi2; 
-      int ndf; 
+        double chi2; 
+        int ndf; 
+        //bool fit_conv = FitInterface->GetFitOutput(chi2, ndf);
+        bool fit_conv = true; 
+        if (fit_conv) {
+          eventFlags.setFlagByName("passFit_flag", true);
+          Q2_fit = PaAlgo::Q2 (inMuFit_TL, outMuFit_TL); 
+          y_fit  = (inMuFit_TL.E() - outMuFit_TL.E()) / inMuFit_TL.E(); 
+          nu_fit = (inMuFit_TL.E() - outMuFit_TL.E()); 
+          x_fit  = PaAlgo::xbj (inMuFit_TL, outMuFit_TL);
+          W2_fit = PaAlgo::W2 (inMuFit_TL, outMuFit_TL);
+          t_fit  = (targetFit_TL - protonFit_TL) * (targetFit_TL - protonFit_TL); 
+          //std::cout << std::endl << "t " << t_fit << std::endl; 
 
-      bool fit_conv = FitInterface->GetFitOutput(chi2, ndf);
-      if (!fit_conv) continue; 
+          // ! NO CUT! Check for statistics only :D
+          bool Q2_cut = (Q2_fit > 1 && Q2_fit < 10);
+          bool y_cut  = (y_fit > 0.05 && y_fit < 0.9);
+          bool t_cut  = (t_fit > -0.64 && t_fit < -0.08);
+          bool nu_cut = (nu_fit > 10 && nu_fit < 144); 
+
+          if (Q2_cut) eventFlags.setFlagByName("Q2Fit_flag", true);
+          if (y_cut) eventFlags.setFlagByName("yFit_flag", true);
+          if (t_cut) eventFlags.setFlagByName("tFit_flag", true);
+          if (nu_cut) eventFlags.setFlagByName("nuFit_flag", true);
+          if (Q2_cut && y_cut && t_cut && nu_cut) eventFlags.setFlagByName("kinFitAll_flag", true);
+          
+        } 
+      }
+
+/*       std::cout << std::endl << "DEBUG:: " 
+          << e.UniqueEvNum() << "," 
+          << R_vtx.X() << ","
+          << R_vtx.Y() << ","
+          << R_vtx.Z() << ","
+          << p_camera_TL.X() << ","
+          << p_camera_TL.Y() << ","
+          << p_camera_TL.Z() << ","
+          << p_camera_TL.E() << ","
+          << Clus_gamma.front().X() << ","
+          << Clus_gamma.front().Y() << ","
+          << Q2_fit << "," 
+          << y_fit << ","
+          << nu_fit << ","
+          << x_fit << ","
+          << W2_fit << ","
+          << t_fit << std::endl; */
 
       //*******************************************
       // Fill histograms for ECal Energy after all exclusivity cuts
@@ -623,9 +724,9 @@ void UserEvent970(PaEvent & e) { // begin event loop
           int ecalid = cl_id.front(); // Retrieve cluster ID
           if (ecalid == ecal0id) {h97_gamma_E_EC0_ex->Fill(cluster.E());}
           if (ecalid == ecal1id) {h97_gamma_E_EC1_ex->Fill(cluster.E());}
-          if (ecalid == ecal2id) {h97_gamma_E_EC2_ex->Fill(cluster.E());}
+          if (ecalid == ecal2id) {h97_gamma_E_EC2_ex->Fill(cluster.E());} 
         }
-      } */
+      }
 
       //*******************************************
       // Debug statements ...
@@ -656,21 +757,20 @@ void UserEvent970(PaEvent & e) { // begin event loop
       gamma_px = gamma_TL.Px();
       gamma_E  = gamma_TL.E();
 
+      // Plots for the Kyungseon COMPASS Report (1/2)
       for (auto proton: protons) {
         TLorentzVector p_camera_TL = proton.p4;
         p_cam_p  = p_camera_TL.P(); 
         p_cam_pz = p_camera_TL.Pz();
         p_cam_py = p_camera_TL.Py();
         p_cam_px = p_camera_TL.Px();
-        p_cam_E = p_camera_TL.E();
+        p_cam_E  = p_camera_TL.E();
 
         p_cam_theta = acos(p_cam_pz / p_cam_p); // polar angle
         p_cam_phi   = atan2(p_cam_py, p_cam_px);  // azimuthal angle
         h97_p_cam_p_theta->Fill(p_cam_p,p_cam_theta);
         h97_p_cam_p_phi->Fill(p_cam_p,p_cam_phi);
-
       }
-
 
       h97_Zprim->Fill(Zprim);
       h97_Yprim->Fill(Yprim);
@@ -697,8 +797,7 @@ void UserEvent970(PaEvent & e) { // begin event loop
       h97_E_miss->Fill(E_miss);
       h97_M2_miss->Fill(M2_miss);    
 
-      //*******************************************
-      // Plots for the Kyungseon COMPASS Report 
+      // Plots for the Kyungseon COMPASS Report (2/2)
       outMu_theta = acos(outMu_pz / outMu_p); // polar angle 
       outMu_phi   = atan2(outMu_py, outMu_px);  // azimuthal angle 
       h97_outMu_p_theta->Fill(outMu_p,outMu_theta);
@@ -709,11 +808,12 @@ void UserEvent970(PaEvent & e) { // begin event loop
       h97_gamma_p_theta->Fill(gamma_p,gamma_theta);
       h97_gamma_p_phi->Fill(gamma_p,gamma_phi);
 
+      tree->Fill();
+
 		} // end loop over vertices 
 
   // Increment all counters whose flags are "true"
   eventFlags.incrementCounters(); 
-
   //Save the event
   //if (saveEvent_flag) {e.TagToSave();}
   e.TagToSave();  
@@ -726,7 +826,7 @@ void UserJobEnd970() {
     std::cout << std::endl;
   }
 
-  eventFlags.printFlags(); // Print to output stream
+  eventFlags.printFlags(); // Print to output stream 
 
 }
 
