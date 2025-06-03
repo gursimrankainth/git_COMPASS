@@ -35,14 +35,12 @@ int main() {
     if (mode == 'l') {
         // Local paths
         filePairs = {
-            {"/Users/gursimran/cern/u97_DVCS.cc", "/Users/gursimran/cern/phastPackages/git_COMPASS/u97_DVCS.cc"},
             {"/Users/gursimran/cern/phast.8.032/user/u970_DVCS.cc", "/Users/gursimran/cern/phastPackages/git_COMPASS/u970_DVCS.cc"},
             {"/Users/gursimran/cern/phast.8.032/user/UConn_Tools.h", "/Users/gursimran/cern/phastPackages/git_COMPASS/UConn_Tools.h"}
         };
     } else if (mode == 'r') {
         // Remote server paths
         filePairs = {
-            {"/afs/cern.ch/user/g/gkainth/phast/user/u97_DVCS.cc", "/afs/cern.ch/user/g/gkainth/phastPackages/git_COMPASS/u97_DVCS.cc"},
             {"/afs/cern.ch/user/g/gkainth/phast/user/u970_DVCS.cc", "/afs/cern.ch/user/g/gkainth/phastPackages/git_COMPASS/u970_DVCS.cc"},
             {"/afs/cern.ch/user/g/gkainth/phast/user/UConn_Tools.h", "/afs/cern.ch/user/g/gkainth/phastPackages/git_COMPASS/UConn_Tools.h"}
         };
