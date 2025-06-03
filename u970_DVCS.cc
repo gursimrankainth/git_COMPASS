@@ -8,7 +8,7 @@
 #include "TTree.h"
 #include "TLorentzVector.h"
 #include "TLorentzRotation.h"
-#include "Phast.h"
+#include "Phast.h" 
 #include "PaSetup.h"
 #include "PaAlgo.h"
 #include "PaEvent.h" 
@@ -177,9 +177,9 @@ void UserEvent970(PaEvent & e) { // begin event loop
 
     static TLorentzVector inMuFit_TL; 
     static TLorentzVector outMuFit_TL; 
-    static TLorentzVector targetFit_TL; 
+    static TLorentzVector targetFit_TL;  
     static TLorentzVector gammaFit_TL; 
-    static TLorentzVector protonFit_TL; 
+    static TLorentzVector protonFit_TL;  
 
     static TMatrixD Cov_inMu;   // covariance matrix for the beam muon  
     static TMatrixD Cov_outMu;  // covariance matrix for the scattered muon
