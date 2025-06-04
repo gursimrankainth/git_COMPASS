@@ -12,8 +12,8 @@
 #include "PaSetup.h"
 #include "PaAlgo.h"
 #include "PaEvent.h" 
-#include "G3part.h" 
 #include "PaHodoHelper.h"
+#include "G3part.h" 
 #include <utility>
 
 #include "ecal_time_cuts.h"
@@ -35,7 +35,7 @@
 // Vertices (incoming and outgoing muons), exclusive photon and recoil proton //
 // ************************************************************************** //
 
-extern "C" float prob_(float&, int&);
+extern "C" float prob_(float&, int&); 
 
 // Event statistic counter flags  
 EventFlags eventFlags; // Create an instance of flags and counters 
@@ -60,56 +60,7 @@ void UserEvent970(PaEvent & e) { // begin event loop
     const double M_p     = G3partMass[14]; // Proton mass 
 
     // Declare all objects globally
-/*     static TH1F* h97_Zprim  = NULL; 
-    static TH1F* h97_Yprim  = NULL; 
-    static TH1F* h97_Xprim  = NULL; 
-    static TH2F* h97_XYprim = NULL;
-
-    static TH1F* h97_inMu_p  = NULL;
-    static TH1F* h97_inMu_py = NULL;
-    static TH1F* h97_inMu_px = NULL; 
-
-    static TH1F* h97_outMu_p  = NULL;
-    static TH1F* h97_outMu_py = NULL;
-    static TH1F* h97_outMu_px = NULL; 
-
-    static TH1F* h97_y      = NULL;
-    static TH1F* h97_nu     = NULL;
-    static TH1F* h97_Q2     = NULL;
-    static TH1F* h97_W2     = NULL;
-    static TH1F* h97_xbj    = NULL;
-    static TH2F* h97_Q2xbj  = NULL;
-    static TH2F* h97_Chi2Q2 = NULL; 
-    static TH1F* h97_t      = NULL;
-
-    static TH1F* h97_gamma_E_EC0 = NULL;
-    static TH1F* h97_gamma_E_EC1 = NULL;
-    static TH1F* h97_gamma_E_EC2 = NULL;
-    static TH1F* h97_E_miss      = NULL;
-    static TH1F* h97_M2_miss     = NULL;
-
-    static TH1F* h97_delta_phi = NULL; 
-    static TH1F* h97_delta_pt  = NULL;
-    static TH1F* h97_delta_Z   = NULL;
-    static TH1F* h97_M2x       = NULL;
-
-    static TH1F* h97_gamma_E_EC0_ex = NULL;
-    static TH1F* h97_gamma_E_EC1_ex = NULL;
-    static TH1F* h97_gamma_E_EC2_ex = NULL;
-
-    static TH1F* h97_pull_imMuX = NULL; 
-
-    static TH2F* h97_outMu_p_theta = NULL;
-    static TH2F* h97_outMu_p_phi   = NULL;
-    static TH2F* h97_gamma_p_theta = NULL;
-    static TH2F* h97_gamma_p_phi   = NULL;
-    static TH2F* h97_p_cam_p_theta = NULL;
-    static TH2F* h97_p_cam_p_phi   = NULL; 
-
-    static TH1F* h97_pi0_M_EC0  = NULL;
-    static TH1F* h97_pi0_M_EC1  = NULL;
-    static TH1F* h97_E_gammaLow = NULL; */
-
+    // Add histograms as well if needed (ex. static TH1F* h97_Zprim  = NULL;)
     static TTree* tree(NULL);
 
     //
@@ -208,65 +159,6 @@ void UserEvent970(PaEvent & e) { // begin event loop
     static bool first(true);
     if (first) { // histograms and Ntuples booking block
         Phast::Ref().HistFileDir("UserEvent970");
-    
-        // 1D and 2D
-/*         h97_Zprim  = new TH1F("h97_Zprim", "Primary Vertex Z (cm); Z [cm]; Events", 100, -250, 250);
-        h97_Yprim  = new TH1F("h97_Yprim", "Primary Vertex Y (cm); Y [cm]; Events", 100, -3, 3);
-        h97_Xprim  = new TH1F("h97_Xprim", "Primary Vertex X (cm); X [cm]; Events", 100, -3, 3);
-        h97_XYprim = new TH2F("h97_XYprim", "Primary Vertex XY (cm); X [cm]; Y [cm]", 100, -3, 3, 100, -3, 3);
-
-        h97_inMu_p  = new TH1F("h97_inMu_p", "P Incoming Muon (GeV/c); P [GeV/c]; Events", 100, 0, 200);
-        h97_inMu_py = new TH1F("h97_inMu_py", "Py Incoming Muon (GeV/c); Py [GeV/c]; Events", 100, 0, 10);
-        h97_inMu_px = new TH1F("h97_inMu_px", "Px Incoming Muon (GeV/c); Px [GeV/c]; Events", 100, 0, 10);
-
-        h97_outMu_p  = new TH1F("h97_outMu_p", "P Scattered Muon (GeV/c); P [GeV/c]; Events", 100, 0, 200);
-        h97_outMu_py = new TH1F("h97_outMu_py", "Py Scattered Muon (GeV/c); Py [GeV/c]; Events", 100, 0, 10);
-        h97_outMu_px = new TH1F("h97_outMu_px", "Px Scattered Muon (GeV/c); Px [GeV/c]; Events", 100, 0, 10);
-
-        h97_y      = new TH1F("h97_y", "Fractional Energy Loss of Incoming Muon (y); y; Events", 100, 0, 1);
-        h97_nu     = new TH1F("h97_nu", "Energy of the virtual photon (#nu); #nu [GeV]; Events", 100, 0, 180);
-        h97_Q2     = new TH1F("h97_Q2", "Four-momentum Transfer Squared (Lepton) (Q^{2}); Q^{2} [GeV^{2}]; Events", 100, 0, 10);
-        h97_W2     = new TH1F("h97_W2", "Effective Mass of final state hadrons Squared (W^{2}); W^{2} [GeV^{2}]; Events", 100, 0, 350);
-        h97_Q2xbj  = new TH2F("h97_Q2xbj", "Kinematic Coverage of Dataset; x_{bj}; Q^{2} [GeV^{2}]", 150, 0, 1, 150, 0, 100);
-        h97_Chi2Q2 = new TH2F("h97_Chi2Q2", "Chi2 of Reconstruced Vertex vs. Q2; Chi^{2}; Q^{2} [GeV^{2}]", 100, 0, 10, 100, 0, 10);
-        h97_t      = new TH1F("h97_t", "Four-momentum Transfer Squared (Nucleon) (t); t [GeV^{2}]; Events", 100, 0, 200);
-
-        const int nBins = 100;      // Number of bins
-        double xMin = 1e-3;         // Minimum x value (avoid 0 because log(0) is undefined)
-        double xMax = 2.0;          // Maximum x value
-        double binEdges[nBins + 1]; // Bin edges array
-        for (int i = 0; i <= nBins; ++i) {
-        binEdges[i] = xMin * pow(xMax / xMin, double(i) / nBins);
-        }
-        h97_xbj = new TH1F("h97_xbj", "Elasticity of the Scattering Process (x_{bj}); x_{bj}; Events", nBins, binEdges);
-
-        h97_gamma_E_EC0 = new TH1F("h97_E_EC0", "Photon Energy ECal 0 - Before Excl. Cuts; E_{#gamma} [GeV]; Counts", 100, 0, 50);
-        h97_gamma_E_EC1 = new TH1F("h97_E_EC1", "Photon Energy ECal 1 - Before Excl. Cuts; E_{#gamma} [GeV]; Counts", 100, 0, 100);
-        h97_gamma_E_EC2 = new TH1F("h97_E_EC2", "Photon Energy ECal 2 - Before Excl. Cuts; E_{#gamma} [GeV]; Counts", 100, 0, 200);
-        h97_E_miss      = new TH1F("h97_E_miss", "Missing Energy (All ECals); E_{#gamma} [GeV]; Counts", 100, -20, 20);
-        h97_M2_miss     = new TH1F("h97_M2_miss", "Missing Mass Squared (All ECals); M^{2}_{#gamma} [GeV^{2}/c^{4}]; Counts", 100, 0, 300);
-
-        h97_delta_phi = new TH1F("h97_delta_phi", "#Delta#phi = #phi^{cam} - #phi^{miss}; #Delta#phi [rad]; Counts", 100, -0.5, 0.5);
-        h97_delta_pt  = new TH1F("h97_delta_pt", "#DeltaP_{t} = P_{t}^{cam} - P_{t}^{miss}; #DeltaP_{t} [GeV/c]; Counts", 100, -0.4, 0.4);
-        h97_delta_Z   = new TH1F("h97_delta_Z", "#DeltaZ_{A} = Z_{A}^{cam} - Z_{A}^{miss}; #DeltaZ_{A} [cm]; Counts", 100, -20, 20);
-        h97_M2x       = new TH1F("h97_M2x", "M^{2}_{undet} = (k + p - k'- q'- p')^{2}; M^{2}_{undet} [GeV^{2}/c^{4}]; Counts", 100, -0.5, 0.5);
-
-        h97_gamma_E_EC0_ex = new TH1F("h97_E_EC0_ex", "Photon Energy ECal 0 - After Excl. Cuts; E_{#gamma} [GeV]; Counts", 100, 0, 50);
-        h97_gamma_E_EC1_ex = new TH1F("h97_E_EC1_ex", "Photon Energy ECal 1 - After Excl. Cuts; E_{#gamma} [GeV]; Counts", 100, 0, 100);
-        h97_gamma_E_EC2_ex = new TH1F("h97_E_EC2_ex", "Photon Energy ECal 2 - After Excl. Cuts; E_{#gamma} [GeV]; Counts", 100, 0, 200);
-
-        h97_pull_imMuX = new TH1F("h97_pull_imMuX", "Pull Distribution: inMu X; #Delta X_{#mu} / #sigma_{X_{#mu}} ; Counts", 100, -10, 10);
-
-        h97_outMu_p_theta = new TH2F("h97_outMu_p_theta", "#mu'; P [GeV/c]; #theta [rad]", 100, 0, 200, 100, 0, 0.15);
-        h97_outMu_p_phi   = new TH2F("h97_outMu_p_phi", "#mu'; P [GeV/c]; #phi [rad]", 100, 0, 200, 100, -5, 5);
-        h97_gamma_p_theta = new TH2F("h97_gamma_p_theta", "#gamma; P [GeV/c]; #theta [rad]", 100, 0, 200, 100, 0, 0.5);
-        h97_gamma_p_phi   = new TH2F("h97_gamma_p_phi", "#gamma; P [GeV/c]; #phi [rad]", 100, 0, 200, 100, -5, 5);
-        h97_p_cam_p_theta = new TH2F("h97_p_cam_p_theta", "P'; P [GeV/c]; #theta [rad]", 100, 0, 20, 100, 0, 4);
-        h97_p_cam_p_phi   = new TH2F("h97_p_cam_p_phi", "P'; P [GeV/c]; #phi [rad]", 100, 0, 20, 100, -5, 5); 
-
-        h97_pi0_M_EC0  = new TH1F("h97_pi0_M_EC0", "Invariant Mass #pi^{0}; M [GeV/c^{2}]; Counts", 100, 0, 0.3);
-        h97_pi0_M_EC1  = new TH1F("h97_pi0_M_EC1", "Invariant Mass #pi^{0}; M [GeV/c^{2}]; Counts", 100, 0, 0.3);
-        h97_E_gammaLow = new TH1F("h97_E_gammaLow", "Low-energy Photon Energy - EC0 & EC1; E [MeV]; Counts", 100, 0, 50); */
 
         //
         // Ntuple definition 
@@ -330,18 +222,18 @@ void UserEvent970(PaEvent & e) { // begin event loop
     //*****************************************************************************
     // Assign names to trigger bits
     enum trigger {   
-                Tiger = 1<<0,
-                MT = 1<<1,
-                LT = 1<<2,
-                OT = 1<<3,
-                CT = 1<<4,
-                IV = 1<<5,
-                HaloT = 1<<6,
-                BT = 1<<7,
-                Tiger_only = 1<<8,
-                LAST = 1<<9,
-                TRand = 1<<10,
-                NRand = 1<<11
+      Tiger = 1<<0,
+      MT = 1<<1,
+      LT = 1<<2,
+      OT = 1<<3,
+      CT = 1<<4,
+      IV = 1<<5,
+      HaloT = 1<<6,
+      BT = 1<<7,
+      Tiger_only = 1<<8,
+      LAST = 1<<9,
+      TRand = 1<<10,
+      NRand = 1<<11
     };
 
     trig_mask = e.TrigMask();
@@ -426,7 +318,7 @@ void UserEvent970(PaEvent & e) { // begin event loop
       NLUDATA ld; 
       if (e.MCgen(ld)) {
         weight_all  = ld.uservar[2]; 
-        weight_DVCS = ld.uservar[15]; 
+        weight_DVCS = ld.uservar[15];  
         weight_BH   = ld.uservar[16];  
         phase_fac   = ld.uservar[9]; 
         weight_Iterference = weight_all - weight_DVCS - weight_BH;
@@ -472,7 +364,8 @@ void UserEvent970(PaEvent & e) { // begin event loop
     }
 
     // Check for exclusive event topology in the case of LEPTO
-    //if (leptoMC && !CheckLeptoEvent(e, true)) return; -> What is this CheckLeptoEvent? 
+    bool exclEvt = exclLepto(e, leptoMC); 
+    if (exclEvt) return;  
 
     //*******************************************  
     eventFlags.setFlagByName("allEvts_flag", true);
@@ -481,7 +374,7 @@ void UserEvent970(PaEvent & e) { // begin event loop
 		for (int iv = 0; iv < e.NVertex(); iv++) { // begin loop over vertices
 			//******************************************* 
 			// Store info about primary vertex (if found) 
-			const PaVertex &v = e.vVertex(iv);
+			const PaVertex &v = e.vVertex(iv); 
 			if (!v.IsPrimary()) continue; // skip any vertices that are not primary 
       eventFlags.setFlagByName("pVtx_flag", true);
       pVtx_vec.SetXYZ(v.Pos(0), v.Pos(1), v.Pos(2));
@@ -504,12 +397,12 @@ void UserEvent970(PaEvent & e) { // begin event loop
       // Store info about scattered muon (outMu)
       static PaParticle outMu; 
       static PaTrack outMu_track; 
-      static PaTPar Par_outMu;
+      static PaTPar Par_outMu; 
 
       static OutMuParams outMuParams; // Create an instance of OutMuParams 
-      outMu_flag = outMuCheck(e, v, iv, Run, beam, HodoHelper, trig_flag, outMuParams, 
-                            outMu, outMu_track, Par_outMu, eventFlags);
-      if (!outMu_flag) continue; 
+      outMu_flag = outMuCheck(e, v, iv, Run, beam, HodoHelper, trig_flag, outMuParams,    
+                            outMu, outMu_track, Par_outMu, eventFlags); 
+      if (!outMu_flag) continue;  
 
       //*******************************************
       // Kinematic variables ... (1/2)
@@ -524,7 +417,7 @@ void UserEvent970(PaEvent & e) { // begin event loop
 
       // Current kinematic cuts will be tightened after the kinematically constrained fit is applied 
       if (Q2 < 0.5) continue; // inclusive Q2 cut
-      eventFlags.setFlagByName("Q2_DIS_flag", true); 
+      eventFlags.setFlagByName("Q2_DIS_flag", true);  
 
       //if (y < 0.01 || y > 0.99) continue; // inclusive y cut
       //eventFlags.setFlagByName("y_DIS_flag", true);
@@ -538,9 +431,6 @@ void UserEvent970(PaEvent & e) { // begin event loop
       //*******************************************
       // Store info about real photon - check ECals for single neutral cluster
       // ! CURRENTLY LOOKING FOR ANY NEUTRAL CLUSTERS, NOT SPECIFICALLY FOR ONE !
-      //printDebug("     ", true);
-      //printDebug("*** Run: " + std::to_string(Run) + ", spill: " + std::to_string(Spill) + ", event: " + std::to_string(EvtInSpill) + " ***", true);
-
       int ecal0id = PaSetup::Ref().iCalorim("EC00P1__");
       int ecal1id = PaSetup::Ref().iCalorim("EC01P1__");
       int ecal2id = PaSetup::Ref().iCalorim("EC02P1__");
@@ -644,7 +534,7 @@ void UserEvent970(PaEvent & e) { // begin event loop
         eventFlags.setFlagByName("protonsAll_flag", true);
         double beta = proton.beta;
         //std::cout << std::endl << "DEBUG::Beta " << beta << std::endl;
-
+ 
         bool beta_flag = false; 
         if (beta >= 0.1 || beta <= 1) {beta_flag=true;}
         if (!beta_flag) continue;
@@ -785,9 +675,9 @@ void UserEvent970(PaEvent & e) { // begin event loop
           // ! NO CUT! Check for statistics only :D 
           if ((Q2_fit > 1 && Q2_fit < 10) || std::isnan(Q2_fit)) {
             Q2_cut = true; 
-          }
+          } 
           if ((y_fit > 0.05 && y_fit < 0.95) || std::isnan(y_fit)) {
-            y_cut = true;
+            y_cut = true; 
           }
           if ((t_fit > -0.64 && t_fit < -0.08) || std::isnan(t_fit)) {
             t_cut = true; 
@@ -854,79 +744,10 @@ void UserEvent970(PaEvent & e) { // begin event loop
       printDebug("    Kinematics: Q2: " + std::to_string(Q2) +  " GeV2, y: " + std::to_string(y) + ", W2: " + std::to_string(W2) + " GeV2, x: " + std::to_string(xbj));
 
       //*******************************************
-      // Fill histrograms 
-/*       inMu_p  = beam_track.vTPar(0).Mom();
-      inMu_pz = beam_track.vTPar(0).Pz();
-      inMu_py = beam_track.vTPar(0).Py();
-      inMu_px = beam_track.vTPar(0).Px();
-      inMu_E  = inMu_TL.E();
-
-      outMu_p  = outMu_track.vTPar(0).Mom();
-      outMu_pz = outMu_track.vTPar(0).Pz();
-      outMu_py = outMu_track.vTPar(0).Py();
-      outMu_px = outMu_track.vTPar(0).Px();
-      outMu_E  = outMu_TL.E();
-
-      gamma_p  = gamma_TL.P();
-      gamma_pz = gamma_TL.Pz();
-      gamma_py = gamma_TL.Py();
-      gamma_px = gamma_TL.Px();
-      gamma_E  = gamma_TL.E();
-
-      // Plots for the Kyungseon COMPASS Report (1/2)
-      for (auto proton: protons) {
-        TLorentzVector p_camera_TL = proton.p4;
-        p_cam_p  = p_camera_TL.P(); 
-        p_cam_pz = p_camera_TL.Pz();
-        p_cam_py = p_camera_TL.Py();
-        p_cam_px = p_camera_TL.Px();
-        p_cam_E  = p_camera_TL.E();
-
-        p_cam_theta = acos(p_cam_pz / p_cam_p); // polar angle
-        p_cam_phi   = atan2(p_cam_py, p_cam_px);  // azimuthal angle
-        h97_p_cam_p_theta->Fill(p_cam_p,p_cam_theta);
-        h97_p_cam_p_phi->Fill(p_cam_p,p_cam_phi);
+      // Fill histrograms here if needed and save data to the tree(s)
+      if (!e.IsMC()) {
+        tree->Fill();
       }
-
-      h97_Zprim->Fill(Zprim);
-      h97_Yprim->Fill(Yprim);
-      h97_Xprim->Fill(Xprim);
-      h97_XYprim->Fill(Xprim,Yprim);
-
-      h97_inMu_p->Fill(inMu_p);
-      h97_inMu_py->Fill(inMu_py);
-      h97_inMu_px->Fill(inMu_px);
-
-      h97_outMu_p->Fill(outMu_p);
-      h97_outMu_py->Fill(outMu_py);
-      h97_outMu_px->Fill(outMu_px);
-
-      h97_y->Fill(y);
-      h97_nu->Fill(nu);
-      h97_Q2->Fill(Q2);
-      h97_W2->Fill(W2);
-      h97_xbj->Fill(xbj); 
-      h97_Q2xbj->Fill(xbj,Q2);
-      h97_Chi2Q2->Fill(Chi2,Q2);
-      h97_t->Fill(t);
-
-      h97_E_miss->Fill(E_miss);
-      h97_M2_miss->Fill(M2_miss);    
-
-      // Plots for the Kyungseon COMPASS Report (2/2)
-      outMu_theta = acos(outMu_pz / outMu_p); // polar angle 
-      outMu_phi   = atan2(outMu_py, outMu_px);  // azimuthal angle 
-      h97_outMu_p_theta->Fill(outMu_p,outMu_theta);
-      h97_outMu_p_phi->Fill(outMu_p,outMu_phi);
-      
-      gamma_theta = acos(gamma_pz / gamma_p); // polar angle 
-      gamma_phi   = atan2(gamma_py, gamma_px);  // azimuthal angle
-      h97_gamma_p_theta->Fill(gamma_p,gamma_theta);
-      h97_gamma_p_phi->Fill(gamma_p,gamma_phi);
-
-      h97_pull_imMuX->Fill(inMu_deltaX/inMu_sigmaX);  */
-
-      tree->Fill();
 
 		} // end loop over vertices 
 

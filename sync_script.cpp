@@ -36,13 +36,15 @@ int main() {
         // Local paths
         filePairs = {
             {"/Users/gursimran/cern/phast.8.032/user/u970_DVCS.cc", "/Users/gursimran/cern/phastPackages/git_COMPASS/u970_DVCS.cc"},
-            {"/Users/gursimran/cern/phast.8.032/user/UConn_Tools.h", "/Users/gursimran/cern/phastPackages/git_COMPASS/UConn_Tools.h"}
+            {"/Users/gursimran/cern/phast.8.032/user/UConn_Tools.h", "/Users/gursimran/cern/phastPackages/git_COMPASS/UConn_Tools.h"},
+            {"/Users/gursimran/cern/phast.8.032/user/UConn_Tools.cc", "/Users/gursimran/cern/phastPackages/git_COMPASS/UConn_Tools.cc"}
         };
     } else if (mode == 'r') {
         // Remote server paths
         filePairs = {
             {"/afs/cern.ch/user/g/gkainth/phast/user/u970_DVCS.cc", "/afs/cern.ch/user/g/gkainth/phastPackages/git_COMPASS/u970_DVCS.cc"},
-            {"/afs/cern.ch/user/g/gkainth/phast/user/UConn_Tools.h", "/afs/cern.ch/user/g/gkainth/phastPackages/git_COMPASS/UConn_Tools.h"}
+            {"/afs/cern.ch/user/g/gkainth/phast/user/UConn_Tools.h", "/afs/cern.ch/user/g/gkainth/phastPackages/git_COMPASS/UConn_Tools.h"},
+            {"/afs/cern.ch/user/g/gkainth/phast/user/UConn_Tools.cc", "/afs/cern.ch/user/g/gkainth/phastPackages/git_COMPASS/UConn_Tools.cc"}
         };
     } else {
         cerr << "Invalid input. Use 'l' for local or 'r' for remote." << endl;
@@ -53,6 +55,13 @@ int main() {
     for (const auto& filePair : filePairs) {
         string file1 = filePair.first;
         string file2 = filePair.second;
+
+        // If destination file doesn't exist, just copy source to destination
+        struct stat buffer;
+        if (stat(file2.c_str(), &buffer) != 0) {
+            copyFile(file1, file2);
+            continue;
+        }
 
         time_t time1 = getFileModificationTime(file1);
         time_t time2 = getFileModificationTime(file2);
@@ -68,4 +77,3 @@ int main() {
 
     return 0;
 }
-
