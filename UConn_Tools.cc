@@ -1,4 +1,3 @@
-#pragma once
 #include <iostream>
 #include <map>
 #include <string>
@@ -9,13 +8,13 @@
 #include "TH2.h"
 #include "TTree.h"
 #include "TLorentzVector.h"
-#include "TLorentzRotation.h"
+#include "TLorentzRotation.h" 
 #include "Phast.h"
 #include "PaSetup.h"
-#include "PaAlgo.h"
+#include "PaAlgo.h" 
 #include "PaEvent.h" 
 #include "G3part.h" 
-#include "UConn_tools.h"
+#include "UConn_Tools.h"
 
 // ************************************************************** //
 // .CC script containing functions used for event selection.      //
@@ -41,113 +40,101 @@
 //    eventFlags.printFlags() // print cut statistics
 // 5. Can also create a new flag usng setFlagByName though the reccomendation is to use createFlag and setFlagByName
 
-// Define a structure and its member functions 
-struct EventFlags {
-    // Vector of tuples: (flag, event-level counter, multi counter, flag name, description)
-    std::vector<std::tuple<bool, int, int, std::string, std::string>> flags;
+// Constructor with mode selector 
+EventFlags::EventFlags(Mode mode) {
+	switch (mode) {
+		case DVCS: 
+			// Event flags 
+			flags.push_back({false, 0, 0, "allEvts_flag", "Total no. of events processed by PHAST user script"});
+			flags.push_back({false, 0, 0, "pVtx_flag", "No. of events with a primary vertex"});
+			// inMu flags
+			flags.push_back({false, 0, 0, "inMuTrack_flag", "No. of events where beam has a track with parameters"});
+			flags.push_back({false, 0, 0, "zFirst_flag", "No. of events where beam was first measured before the target"});
+			flags.push_back({false, 0, 0, "momRange_flag", "No. of events where beam momentum falls within flux requirements"});
+			flags.push_back({false, 0, 0, "momErr_flag", "No. of events where beam momentum error falls within flux requirements"});
+			flags.push_back({false, 0, 0, "BMS_flag", "No. of events where beam is detected by BMS"});
+			flags.push_back({false, 0, 0, "FI_flag", "No. of events where beam is detected by SCIFI"});
+			flags.push_back({false, 0, 0, "SI_flag", "No. of events where beam is detected by SI"});
+			flags.push_back({false, 0, 0, "crossCells_flag", "No. of events where beam crosses full target length"});
+			flags.push_back({false, 0, 0, "meantime_flag", "No. of events where beam track meantime is within flux requirements"});
+			//flags.push_back({false, 0, 0, "timeInSpill_flag", "No. of events where time in spill is within flux requirements"});
+			// outMu flags 
+			flags.push_back({false, 0, 0, "vtxInTarget_flag", "No. of events where the vertex is in the target"});
+			flags.push_back({false, 0, 0, "trigger_flag", "No. of events with MT, LT, OT or LAST physics triggers"});
+			//flags.push_back({false, 0, 0, "passHodo_flag", "No. of events where scattered muon passes Hodoscope check"});
+			flags.push_back({false, 0, 0, "charge_flag", "No. of events where scattered muon has the same charge as the beam"});
+			flags.push_back({false, 0, 0, "zFirstLast_flag", "No. of events where first and last scattered muon z coord. are measured before and after SM1"});
+			break; 
 
-    // Default DVCS constructor to initialize flags
-    EventFlags() {
-        // Event flags 
-        flags.push_back({false, 0, 0, "allEvts_flag", "Total no. of events processed by PHAST user script"});
-        flags.push_back({false, 0, 0, "pVtx_flag", "No. of events with a primary vertex"});
-        // inMu flags
-        flags.push_back({false, 0, 0, "inMuTrack_flag", "No. of events where beam has a track with parameters"});
-        flags.push_back({false, 0, 0, "zFirst_flag", "No. of events where beam was first measured before the target"});
-        flags.push_back({false, 0, 0, "momRange_flag", "No. of events where beam momentum falls within flux requirements"});
-        flags.push_back({false, 0, 0, "momErr_flag", "No. of events where beam momentum error falls within flux requirements"});
-        flags.push_back({false, 0, 0, "BMS_flag", "No. of events where beam is detected by BMS"});
-        flags.push_back({false, 0, 0, "FI_flag", "No. of events where beam is detected by SCIFI"});
-        flags.push_back({false, 0, 0, "SI_flag", "No. of events where beam is detected by SI"});
-        flags.push_back({false, 0, 0, "crossCells_flag", "No. of events where beam crosses full target length"});
-        flags.push_back({false, 0, 0, "meantime_flag", "No. of events where beam track meantime is within flux requirements"});
-        //flags.push_back({false, 0, 0, "timeInSpill_flag", "No. of events where time in spill is within flux requirements"});
-        // outMu flags 
-        flags.push_back({false, 0, 0, "vtxInTarget_flag", "No. of events where the vertex is in the target"});
-        flags.push_back({false, 0, 0, "trigger_flag", "No. of events with MT, LT, OT or LAST physics triggers"});
-        //flags.push_back({false, 0, 0, "passHodo_flag", "No. of events where scattered muon passes Hodoscope check"});
-        flags.push_back({false, 0, 0, "charge_flag", "No. of events where scattered muon has the same charge as the beam"});
-        flags.push_back({false, 0, 0, "zFirstLast_flag", "No. of events where first and last scattered muon z coord. are measured before and after SM1"});
-    }
-
-	// Default Rho0 constructor to initialize flags
-/* 	EventFlags() {
-		flags.push_back({false, 0, 0, "allEvts_flag", "Total no. of events processed by PHAST user script"});
-		flags.push_back({false, 0, 0, "pVtx_flag", "No. of events with a primary vertex"});
-		flags.push_back({false, 0, 0, "inMuTrack_flag", "No. of events where beam has a track with parameters"});
-		flags.push_back({false, 0, 0, "passHodo_flag", "No. of events where scattered muon passes Hodoscope check"});
-		flags.push_back({false, 0, 0, "charge_flag", "No. of events where scattered muon has the same charge as the beam"});
-		flags.push_back({false, 0, 0, "zFirst_flag", "No. of events where beam was first measured before the target"});
-		flags.push_back({false, 0, 0, "zFirstLast_flag", "No. of events where first and last scattered muon z coord. are measured before and after SM1"});
-		flags.push_back({false, 0, 0, "BMS_flag", "No. of events where beam is detected by BMS"});
-		flags.push_back({false, 0, 0, "mu0LH_flag", "No. of events where beam is probability of back propagation is bigger than 0.01"});
-		flags.push_back({false, 0, 0, "muChi2_flag", "Beam and mu chi2 check"});
-		flags.push_back({false, 0, 0, "momRange_flag", "No. of events where beam momentum falls within flux requirements"});
-		flags.push_back({false, 0, 0, "momErr_flag", "No. of events where beam momentum error falls within flux requirements"});
-		flags.push_back({false, 0, 0, "radLen_flag", "No. of events where radiation len of mu > 15"});
-		flags.push_back({false, 0, 0, "crossCells_flag", "No. of events where beam crosses full target length"});
-		flags.push_back({false, 0, 0, "vtxInTarget_flag", "No. of events where the vertex is in the target"});
-		flags.push_back({false, 0, 0, "trigger_flag", "No. of events with MT, LT, OT or LAST physics triggers"});
-		flags.push_back({false, 0, 0, "timeInSpill_flag", "No. of events where time in spill is within flux requirements"});
-	} */
-
-    // Function to create a new flag dynamically
-    void createFlag(const std::string& flagName, const std::string& description) {
-        // Check if flag already exists
-        for (const auto& flag : flags) {
-            if (std::get<3>(flag) == flagName) return; // Don't add duplicate flags
-        }
-        flags.push_back({false, 0, 0, flagName, description});
-    }
-
-    // Function to reset all flags 
-    void resetFlags() {
-        for (auto& flag : flags) {
-            std::get<0>(flag) = false;
-        }
-    }
-
-	// Function to set a flag by name and automatically increment the second counter
-	void setFlagByName(const std::string& flagName, bool value, const std::string& description = "") {
-		for (auto& flag : flags) {
-			if (std::get<3>(flag) == flagName) {  // Using the correct flag name
-				std::get<0>(flag) = value;         // Set the flag value
-
-				if (value) { 
-					std::get<2>(flag)++;  // Increment the second counter each time the flag is set to true
-				}
-				return;
-			}
-		}
-		// If the flag is not found, create a new one
-		if (!description.empty()) {
-			createFlag(flagName, description);
-			std::get<0>(flags.back()) = value;
-			if (value) {
-				std::get<2>(flags.back())++;  // Increment the second counter for newly added flags
-			}
-		}
+		case RHO0:
+			flags.push_back({false, 0, 0, "allEvts_flag", "Total no. of events processed by PHAST user script"});
+			flags.push_back({false, 0, 0, "pVtx_flag", "No. of events with a primary vertex"});
+			flags.push_back({false, 0, 0, "inMuTrack_flag", "No. of events where beam has a track with parameters"});
+			flags.push_back({false, 0, 0, "passHodo_flag", "No. of events where scattered muon passes Hodoscope check"});
+			flags.push_back({false, 0, 0, "charge_flag", "No. of events where scattered muon has the same charge as the beam"});
+			flags.push_back({false, 0, 0, "zFirst_flag", "No. of events where beam was first measured before the target"});
+			flags.push_back({false, 0, 0, "zFirstLast_flag", "No. of events where first and last scattered muon z coord. are measured before and after SM1"});
+			flags.push_back({false, 0, 0, "BMS_flag", "No. of events where beam is detected by BMS"});
+			flags.push_back({false, 0, 0, "mu0LH_flag", "No. of events where beam is probability of back propagation is bigger than 0.01"});
+			flags.push_back({false, 0, 0, "muChi2_flag", "Beam and mu chi2 check"});
+			flags.push_back({false, 0, 0, "momRange_flag", "No. of events where beam momentum falls within flux requirements"});
+			flags.push_back({false, 0, 0, "momErr_flag", "No. of events where beam momentum error falls within flux requirements"});
+			flags.push_back({false, 0, 0, "radLen_flag", "No. of events where radiation len of mu > 15"});
+			flags.push_back({false, 0, 0, "crossCells_flag", "No. of events where beam crosses full target length"});
+			flags.push_back({false, 0, 0, "vtxInTarget_flag", "No. of events where the vertex is in the target"});
+			flags.push_back({false, 0, 0, "trigger_flag", "No. of events with MT, LT, OT or LAST physics triggers"});
+			flags.push_back({false, 0, 0, "timeInSpill_flag", "No. of events where time in spill is within flux requirements"});
+			break; 
 	}
+}
 
-    // Function to increment only the event-level counters (first integer)
-    void incrementCounters() {
-        for (auto& flag : flags) {
-            if (std::get<0>(flag)) {  // If the flag is true
-                std::get<1>(flag)++; // Increment the event-level counter
+void EventFlags::createFlag(const std::string& flagName, const std::string& description) {
+    for (const auto& flag : flags) {
+        if (std::get<3>(flag) == flagName) return; // avoid duplicates
+    }
+    flags.push_back({false, 0, 0, flagName, description});
+}
+
+void EventFlags::resetFlags() {
+    for (auto& flag : flags) {
+        std::get<0>(flag) = false;
+    }
+}
+
+void EventFlags::setFlagByName(const std::string& flagName, bool value, const std::string& description) {
+    for (auto& flag : flags) {
+        if (std::get<3>(flag) == flagName) {
+            std::get<0>(flag) = value;
+            if (value) {
+                std::get<2>(flag)++;
             }
+            return;
         }
     }
+    if (!description.empty()) {
+        createFlag(flagName, description);
+        std::get<0>(flags.back()) = value;
+        if (value) {
+            std::get<2>(flags.back())++;
+        }
+    }
+}
 
-	// Function to print flags, showing both counters and description
-	void printFlags() const {
-		for (const auto& flag : flags) {
-			std::cout << std::get<1>(flag) << " : "    // Event-level counter
-					<< std::get<2>(flag) << " : "      // Second counter (multi counter)
-					<< std::get<4>(flag) << std::endl; // Description  
-		}
-	}
-};
+void EventFlags::incrementCounters() {
+    for (auto& flag : flags) {
+        if (std::get<0>(flag)) {
+            std::get<1>(flag)++;
+        }
+    }
+}
 
+void EventFlags::printFlags() const {
+    for (const auto& flag : flags) {
+        std::cout << std::get<1>(flag) << " : "    // event-level counter
+                  << std::get<2>(flag) << " : "    // multi counter
+                  << std::get<4>(flag) << std::endl; // description
+    }
+}
 
 // *************************  PRINTDEBUG  *************************** 
 // 1. Function: printDebug -> print debug statements if verbose_mode is set to true 
@@ -164,7 +151,7 @@ struct EventFlags {
 extern bool verbose_mode; // Set to true for verbose output, false to suppress
 
 // Define the function (to print statement even if verbose mode is off set second arguement to true)
-void printDebug(const std::string &message, bool forcePrint = false) {
+void printDebug(const std::string &message, bool forcePrint) {
     if (verbose_mode || forcePrint) {
         std::cout << message << std::endl;
     }
@@ -179,13 +166,14 @@ void printDebug(const std::string &message, bool forcePrint = false) {
 // 4. Example usage: https://github.com/gursimrankainth/git_COMPASS/blob/main/u970_DVCS.cc 
 
 // Constructor with default values
-BeamFluxParams(double rmax = 1.9, double ymax = 1.2, double zmin = -318.5, 
-				double zmax = -78.5, int rmaxMC = 2, double zfirst = -78.5, 
-				int minFI = 2, int minSI = 3, int minBMS = 3, double minMom = 14.0,
-				double maxMom = 180.0, double percent = 0.025) 
-	: Rmax(rmax), Ymax(ymax), tgt_zmin(zmin), tgt_zmax(zmax), RmaxMC(rmaxMC),
-	zfirst(zfirst), minFI(minFI), minSI(minSI), minBMS(minBMS), minMom(minMom),
-	maxMom(maxMom), percent(percent) {}
+BeamFluxParams::BeamFluxParams(double rmax, double ymax, double zmin, 
+                               double zmax, int rmaxMC, double zfirst, 
+                               int minFI, int minSI, int minBMS, double minMom,
+                               double maxMom, double percent)
+    : Rmax(rmax), Ymax(ymax), tgt_zmin(zmin), tgt_zmax(zmax), RmaxMC(rmaxMC),
+      zfirst(zfirst), minFI(minFI), minSI(minSI), minBMS(minBMS), minMom(minMom),
+      maxMom(maxMom), percent(percent)
+{}
 
 // Define the function 
 bool beamFluxCheck(const PaEvent &e, const PaVertex &v, int vertexIndex, int Run, bool TiS_flag, 
@@ -347,7 +335,7 @@ bool outMuCheck(const PaEvent &e, const PaVertex &v, int vertexIndex, int Run, c
 }
 
 
-// *************************  FIND EXCLUSIVE LEPTO EVTS (DVCS)  ***************************
+// *************************  REMOVE EXCLUSIVE LEPTO EVTS (DVCS)  ***************************
 // This funtion is an adaptation of LeptoPi0Filter.cc (https://gitlab.cern.ch/compass/dvcs_sidis/2016-dvcs-analysis/-/blob/master/UserEvent/LeptoPi0Filter.cc?ref_type=heads)
 // 1. Function: exclLepto() -> check if the event is exclusive (these need to be removed from the sample)
 // 2. Input (2): PaEvent object, bool leptoMC 
@@ -397,6 +385,31 @@ bool exclLepto (const PaEvent &e, bool leptoMC) {
 
 	return false; 
 
+}
+
+
+// *************************  ANGLE BETWEEN THE REAL AND VIRTUAL PHOTON SCATTERING PLANE (DVCS)  ***************************
+// This funtion is an adaptation of calc_phi_2gamma.cc (https://gitlab.cern.ch/compass/dvcs_sidis/2016-dvcs-analysis/-/blob/master/UserEvent/calc_phi_2gamma.cc?ref_type=heads)
+// 1. Function: phiRV() -> find the azimuthal angle between the lepton scattering plane and the real photon production plane
+// 2. Input (3): TLorentz vectors for the inMU, outMu, and real photon  
+// 3. Output (1): double value for the angle in radians
+// 4. Example usage: https://github.com/gursimrankainth/git_COMPASS/blob/main/u970_DVCS.cc 
+
+double phiRV(TLorentzVector inMu_TL, TLorentzVector outMu_TL, TLorentzVector proton_TL, TLorentzVector gamma_TL) {
+	TLorentzVector q = inMu_TL - outMu_TL; // four-vector of the virtual photon 
+	TVector3 q3 = q.Vect(); // three-vector of the virtual photon 
+	TVector3 l3 = inMu_TL.Vect(); // three-vector of the incoming lepton
+	TVector3 g3 = gamma_TL.Vect(); // three-vector of the real photon 
+	TVector3 p3 = proton_TL.Vect(); // three-vector of the recoil proton
+
+	TVector3 norm_lep = q3.Cross(l3).Unit(); // unit normal vector to the lepton plane 
+	TVector3 norm_had = g3.Cross(p3).Unit(); // unit normal vector to the real photon plane 
+
+	double sign_lab = norm_lep.Dot(g3); // Get direction of phi
+	double phi = norm_lep.Angle(norm_had);
+	if (sign_lab < 0) phi = -phi; // correct direction of phi if needed
+
+	return phi; 
 }
 
 
@@ -517,7 +530,7 @@ bool crossCheck(const PaEvent &e, const PaVertex & v,int iv, int Run,const BeamF
 
 
 // *************************  X-CHECK 2 RHO0 *************************** 
-bool crossCheck2(const PaEvent &e, const PaVertex & v,int iv, int Run,const BeamFluxParams &params, PaParticle &beam, PaTrack &beam_track, PaTPar &Par_beam, PaHodoHelper* HodoHelper, const OutMuParams &outparams, PaParticle &outMu, PaTrack &outMu_track,  PaTPar &Par_outMu,EventFlags &flags,bool isMC = false){
+bool crossCheck2(const PaEvent &e, const PaVertex & v,int iv, int Run,const BeamFluxParams &params, PaParticle &beam, PaTrack &beam_track, PaTPar &Par_beam, PaHodoHelper* HodoHelper, const OutMuParams &outparams, PaParticle &outMu, PaTrack &outMu_track,  PaTPar &Par_outMu,EventFlags &flags,bool isMC){
 	// Check that there is an incoming muon associated with the vertex
         int i_beam = v.InParticle();
         if (i_beam == -1) {

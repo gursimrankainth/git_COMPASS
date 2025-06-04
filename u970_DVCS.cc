@@ -9,7 +9,7 @@
 #include "TLorentzVector.h"
 #include "TLorentzRotation.h"
 #include "Phast.h" 
-#include "PaSetup.h"
+#include "PaSetup.h" 
 #include "PaAlgo.h"
 #include "PaEvent.h" 
 #include "PaHodoHelper.h"
@@ -22,7 +22,7 @@
 //#include "/Users/gursimran/cern/phastPackages/xcheck_newTiS/tis_range.cc"
 //#include "/Users/gursimran/cern/phastPackages/xcheck_newTiS/tis_range.h"
 #include "Toololols_KinFitterInterface.hh"
-#include "UConn_Tools.h"
+#include "UConn_Tools.h" 
 
 #include "/afs/cern.ch/user/g/gkainth/phastPackages/xcheck_newTiS/tis_range.cc"
 #include "/afs/cern.ch/user/g/gkainth/phastPackages/xcheck_newTiS/tis_range.h"
@@ -38,7 +38,7 @@
 extern "C" float prob_(float&, int&); 
 
 // Event statistic counter flags  
-EventFlags eventFlags; // Create an instance of flags and counters 
+EventFlags eventFlags(EventFlags::DVCS); // Create an instance of flags and counters 
 
 // Global user selection flags 
 bool verbose_mode      = false; // Create an instance of verbose_mode
@@ -100,7 +100,7 @@ void UserEvent970(PaEvent & e) { // begin event loop
 
     static int    pi0_calo;    // calorimeter ID for low energy clusters used in pi0 reconstruction -> same calorimeter as DVCS photon
     static double M_pi0;       // pi0 invariant mass 
-    static double E_gammaLow;  // low-energy photon energy 
+    static double E_gammaLow;  // low-energy photon energy  
 
     static double y;   // fractional energy loss of the incoming lepton 
     static double nu;  // energy of the virtual photon 
@@ -390,8 +390,8 @@ void UserEvent970(PaEvent & e) { // begin event loop
 			static BeamFluxParams beamParams; // Create an instance of BeamFluxParams
       // No TiS check yet for event selection so let it be true for all events 
       // Will actually make a cut on the TiS later  
-			flux_flag = beamFluxCheck(e, v, iv, Run, true, beamParams, beam, beam_track, Par_beam, eventFlags);
-			if (!flux_flag) continue;   
+	 		flux_flag = beamFluxCheck(e, v, iv, Run, true, beamParams, beam, beam_track, Par_beam, eventFlags);
+			if (!flux_flag) continue;  
 
       //*******************************************
       // Store info about scattered muon (outMu)
@@ -402,7 +402,7 @@ void UserEvent970(PaEvent & e) { // begin event loop
       static OutMuParams outMuParams; // Create an instance of OutMuParams 
       outMu_flag = outMuCheck(e, v, iv, Run, beam, HodoHelper, trig_flag, outMuParams,    
                             outMu, outMu_track, Par_outMu, eventFlags); 
-      if (!outMu_flag) continue;  
+      if (!outMu_flag) continue; 
 
       //*******************************************
       // Kinematic variables ... (1/2)
