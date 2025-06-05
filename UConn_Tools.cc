@@ -395,12 +395,18 @@ bool exclLepto (const PaEvent &e, bool leptoMC) {
 // 3. Output (1): double value for the angle in radians
 // 4. Example usage: https://github.com/gursimrankainth/git_COMPASS/blob/main/u970_DVCS.cc 
 
-double phiRV(TLorentzVector inMu_TL, TLorentzVector outMu_TL, TLorentzVector proton_TL, TLorentzVector gamma_TL) {
+double phiRV(TLorentzVector inMu_TL, TLorentzVector outMu_TL, TLorentzVector proton_TL, TLorentzVector gamma_TL, bool eIsMC) {
 	TLorentzVector q = inMu_TL - outMu_TL; // four-vector of the virtual photon 
 	TVector3 q3 = q.Vect(); // three-vector of the virtual photon 
-	TVector3 l3 = inMu_TL.Vect(); // three-vector of the incoming lepton
 	TVector3 g3 = gamma_TL.Vect(); // three-vector of the real photon 
 	TVector3 p3 = proton_TL.Vect(); // three-vector of the recoil proton
+
+	TVector3 l3; // three-vector of the incoming lepton
+	if (eIsMC) {
+		l3 = -inMu_TL.Vect(); // flip the sign for MC to align with real data 
+	} else {
+		l3 = inMu_TL.Vect(); 
+	}
 
 	TVector3 norm_lep = q3.Cross(l3).Unit(); // unit normal vector to the lepton plane 
 	TVector3 norm_had = g3.Cross(p3).Unit(); // unit normal vector to the real photon plane 

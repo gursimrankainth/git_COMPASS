@@ -61,7 +61,8 @@ void UserEvent970(PaEvent & e) { // begin event loop
 
     // Declare all objects globally
     // Add histograms as well if needed (ex. static TH1F* h97_Zprim  = NULL;)
-    static TTree* tree(NULL);
+    static TTree* tree(NULL);     // tree for data passed through full event selection process 
+    static TTree* tree_gen(NULL); // tree for processing HEPGEN data priot to event selection (aceptance study)
 
     //
     // Variables to be stored into analysis Ntuple
@@ -71,12 +72,8 @@ void UserEvent970(PaEvent & e) { // begin event loop
     // - add in Ntuple definition below 
     // and do not forget to fill the variable in the code
     //
-    static double weight_all; 
-    static double weight_DVCS; 
-    static double weight_BH; 
-    static double weight_Iterference; 
-    static double phase_fac; 
-
+    //*******************************************
+    // Real data/shared variables   
     static unsigned long long int Evt; // event number - unique evt number (based on run, spill and evt num in spill) 
     static int    Run;          // run number
     static int    LastRun = -1; // store the previous run number (used to reintialize Hodohelper, tis_range if there are multiple runs)
@@ -86,6 +83,7 @@ void UserEvent970(PaEvent & e) { // begin event loop
     static double TimeInSpill;  // time in spill 
     static float  Chi2;         // Chi2 of the reconstructed vertex 
     static int    Nprim;        // Number of tracks in primary vertex (-1 in fot found)
+    static int    Q_beam;       // Charge of the beam 
     static int    trig_mask;
 
     static TVector3 pVtx_vec;     // position vector for the primary vertex (X, Y, Z)
@@ -149,6 +147,29 @@ void UserEvent970(PaEvent & e) { // begin event loop
     static double chi2_fit; // chi2 of the fit  
     static int    ndf_fit;  // ndf of the fit 
 
+    //*******************************************
+    // HEPGEN data (prior to event selection) -> used for acceptance study 
+    static TLorentzVector inMu_gen_TL ; 
+    static TLorentzVector outMu_gen_TL; 
+    static TLorentzVector gamma_gen_TL; 
+    static TLorentzVector proton_gen_TL; 
+    static TLorentzVector q_gen; // four momentum of the virtual photon
+
+    static double Q2_gen; 
+    static double xbj_gen;
+    static double nu_gen; 
+    static double W2_gen; 
+    static double t_gen;  
+    static double phi_gg_gen; // azimuthal angle between the virtual and real photon production planes 
+
+    static double weight_all; 
+    static double weight_DVCS; 
+    static double weight_BH; 
+    static double weight_Interference; 
+    static double phase_fac; 
+    static double weight_PAMBH; 
+
+    //*******************************************
     // Event selection flags 
     bool trig_flag  = false; 
     bool TiS_flag   = false;
@@ -163,59 +184,86 @@ void UserEvent970(PaEvent & e) { // begin event loop
         //
         // Ntuple definition 
         //
-        tree = new TTree("USR97","User 97 DVCS NTuple"); // name (has to be unique) and title of the Ntuple
-        
-        tree->Branch("Run",     &Run,     "Run/I");
-        tree->Branch("Evt",     &Evt,     "Evt/I");
-        tree->Branch("Chi2",    &Chi2,    "Chi2/F");
-
-        tree->Branch("pVtx_vec",     &pVtx_vec);
+        //*******************************************
+        tree = new TTree("USR970","User 970 DVCS NTuple"); // name (has to be unique) and title of the Ntuple
+        // Basic event information
+        tree->Branch("Run", &Run, "Run/I");
+        tree->Branch("Evt", &Evt, "Evt/I");
+        tree->Branch("Chi2", &Chi2, "Chi2/F");
+        tree->Branch("Spill", &Spill, "Spill/I");
+        tree->Branch("Q_beam", &Q_beam, "Q_beam/I");
+        // Particle/vertex vectors 
+        tree->Branch("inMu_TL", &inMu_TL);
+        tree->Branch("outMu_TL", &outMu_TL);
+        tree->Branch("gamma_TL", &gamma_TL);
+        tree->Branch("pVtx_vec", &pVtx_vec);
+        tree->Branch("p_camera_TL", &p_camera_TL);
         tree->Branch("posRingA_vec", &posRingA_vec);
         tree->Branch("posRingB_vec", &posRingB_vec);
-
-        tree->Branch("inMu_TL",     &inMu_TL);
-        tree->Branch("outMu_TL",    &outMu_TL);
-        tree->Branch("gamma_TL",    &gamma_TL);
-        tree->Branch("p_camera_TL", &p_camera_TL);
-
-        tree->Branch("y",   &y,   "y/D");
-        tree->Branch("nu",  &nu,  "nu/D");
-        tree->Branch("Q2",  &Q2,  "Q2/D");
-        tree->Branch("W2",  &W2,  "W2/D");
+        // Kinematic variables 
+        tree->Branch("y", &y, "y/D");
+        tree->Branch("t", &t, "t/D");
+        tree->Branch("nu", &nu, "nu/D");
+        tree->Branch("Q2", &Q2, "Q2/D");
+        tree->Branch("W2", &W2, "W2/D");
         tree->Branch("xbj", &xbj, "xbj/D");
-        tree->Branch("t",   &t,   "t/D");
-
-        tree->Branch("E_miss",  &E_miss,  "E_miss/D");
+        // Missing energy/mass (assuming missing proton)
+        tree->Branch("E_miss", &E_miss, "E_miss/D");
         tree->Branch("M2_miss", &M2_miss, "M2_miss/D");
-
-        tree->Branch("pi0_calo",   &pi0_calo,   "pi0_calo/I");
-        tree->Branch("M_pi0",      &M_pi0,      "M_pi0/D");
-        tree->Branch("E_gammaLow", &E_gammaLow, "E_gammaLow/D");        
-
+        // Invariant mass of visible pi0
+        tree->Branch("M_pi0", &M_pi0, "M_pi0/D");
+        tree->Branch("pi0_calo", &pi0_calo, "pi0_calo/I");
+        tree->Branch("E_gammaLow", &E_gammaLow, "E_gammaLow/D");  
+        // Exclusivity variables      
+        tree->Branch("M2x", &M2x, "M2x/D");
+        tree->Branch("delta_Z", &delta_Z, "delta_Z/D");
+        tree->Branch("delta_pt", &delta_pt, "delta_pt/D");
         tree->Branch("delta_phi", &delta_phi, "delta_phi/D");
-        tree->Branch("delta_pt",  &delta_pt,  "delta_pt/D");
-        tree->Branch("delta_Z",   &delta_Z,   "delta_Z/D");
-        tree->Branch("M2x",       &M2x,       "M2x/D");
-
-        tree->Branch("pVtxFit_vec",     &pVtxFit_vec);
+        // Kinematic fit vectors 
+        tree->Branch("inMuFit_TL", &inMuFit_TL);
+        tree->Branch("outMuFit_TL", &outMuFit_TL);
+        tree->Branch("gammaFit_TL", &gammaFit_TL);
+        tree->Branch("pVtxFit_vec", &pVtxFit_vec);
+        tree->Branch("protonFit_TL", &protonFit_TL);
         tree->Branch("posRingAFit_vec", &posRingAFit_vec);
         tree->Branch("posRingBFit_vec", &posRingBFit_vec);
-
-        tree->Branch("inMuFit_TL",   &inMuFit_TL);
-        tree->Branch("outMuFit_TL",  &outMuFit_TL);
-        tree->Branch("gammaFit_TL",  &gammaFit_TL);
-        tree->Branch("protonFit_TL", &protonFit_TL);
-
-        tree->Branch("Cov_inMu",   &Cov_inMu);
-        tree->Branch("Cov_outMu",  &Cov_outMu);
-        tree->Branch("Cov_gamma",  &Cov_gamma);
+        // Kinematic fit covariance matrices
+        tree->Branch("Cov_inMu", &Cov_inMu);
+        tree->Branch("Cov_outMu", &Cov_outMu);
+        tree->Branch("Cov_gamma", &Cov_gamma);
+        tree->Branch("Cov_ringA", &Cov_ringA);
+        tree->Branch("Cov_ringB", &Cov_ringB);
         tree->Branch("Cov_proton", &Cov_proton);
-        tree->Branch("Cov_ringA",  &Cov_ringA);
-        tree->Branch("Cov_ringB",  &Cov_ringB);
-
         tree->Branch("chi2_fit", &chi2_fit, "chi2_fit/D");
-        tree->Branch("ndf_fit",  &ndf_fit,  "ndf_fit/I");
+        tree->Branch("ndf_fit", &ndf_fit, "ndf_fit/I");
 
+        //*******************************************
+        tree_gen = new TTree("USR970_GEN","User 970 HEPGEN NTuple");
+        // Basic event information
+        tree_gen->Branch("Run", &Run, "Run/I");
+        tree_gen->Branch("Evt", &Evt, "Evt/I");
+        tree_gen->Branch("Spill", &Spill, "Spill/I");
+        tree_gen->Branch("Q_beam", &Q_beam, "Q_beam/I");
+        // Particle vectors 
+        tree_gen->Branch("inMu_gen_TL", &inMu_gen_TL);
+        tree_gen->Branch("outMu_gen_TL", &outMu_gen_TL);
+        tree_gen->Branch("gamma_gen_TL", &gamma_gen_TL);
+        tree_gen->Branch("proton_gen_TL", &proton_gen_TL);
+        // Kinematic variables 
+        tree_gen->Branch("t_gen", &t_gen, "t_gen/D");
+        tree_gen->Branch("Q2_gen", &Q2_gen, "Q2_gen/D");
+        tree_gen->Branch("nu_gen", &nu_gen, "nu_gen/D");
+        tree_gen->Branch("W2_gen", &W2_gen, "W2_gen/D");
+        tree_gen->Branch("xbj_gen", &xbj_gen, "xbj_gen/D");
+        tree_gen->Branch("phi_gg_gen", &phi_gg_gen, "phi_gg_gen/D");
+        // Weights 
+        tree_gen->Branch("phase_fac", &phase_fac, "phase_fac/D");
+        tree_gen->Branch("weight_BH", &weight_BH, "weight_BH/D");
+        tree_gen->Branch("weight_all", &weight_all, "weight_all/D");
+        tree_gen->Branch("weight_DVCS", &weight_DVCS, "weight_DVCS/D");
+        tree_gen->Branch("weight_PAMBH", &weight_PAMBH, "weight_PAMBH/D");
+        tree_gen->Branch("weight_Interference", &weight_Interference, "weight_Interference/D");
+        
         first = false;
     } // end of histogram booking
 
@@ -321,7 +369,7 @@ void UserEvent970(PaEvent & e) { // begin event loop
         weight_DVCS = ld.uservar[15];  
         weight_BH   = ld.uservar[16];  
         phase_fac   = ld.uservar[9]; 
-        weight_Iterference = weight_all - weight_DVCS - weight_BH;
+        weight_Interference = weight_all - weight_DVCS - weight_BH;
       }
 
       int it_beam   = -1;
@@ -344,21 +392,24 @@ void UserEvent970(PaEvent & e) { // begin event loop
         const PaTPar &par_gamma  = t_gamma.ParInVtx();
         const PaTPar &par_proton = t_proton.ParInVtx();
 
-        const TLorentzVector inMu_gen_TL   = par_beam.LzVec(M_mu); 
-        const TLorentzVector outMu_gen_TL  = par_outMu.LzVec(M_mu); 
-        const TLorentzVector gamma_gen_TL  = par_gamma.LzVec(0); 
-        const TLorentzVector proton_gen_TL = par_proton.LzVec(M_p); 
-        const TLorentzVector q_gen         = inMu_gen_TL - outMu_gen_TL; // four momentum of the virtual photon
+        inMu_gen_TL   = par_beam.LzVec(M_mu); 
+        outMu_gen_TL  = par_outMu.LzVec(M_mu); 
+        gamma_gen_TL  = par_gamma.LzVec(0); 
+        proton_gen_TL = par_proton.LzVec(M_p); 
+        q_gen         = inMu_gen_TL - outMu_gen_TL;
 
-        double Q2_gen = PaAlgo::Q2 (inMu_gen_TL, outMu_gen_TL); 
-        double xbj_gen = PaAlgo::xbj (inMu_gen_TL, outMu_gen_TL);
-        double nu_gen = inMu_gen_TL.E() - outMu_gen_TL.E(); 
-        double W2_gen = PaAlgo::W2 (inMu_gen_TL, outMu_gen_TL); 
-        double t_gen  = (targ_TL - proton_gen_TL) * (targ_TL - proton_gen_TL); 
+        if (par_beam.Q() > 0) {
+          Q_beam = 1;
+        } else {Q_beam = -1;}
 
-        //double phi_gamma_gamma_gen = .... calculate the phi angle for the two generated photons 
+        Q2_gen = PaAlgo::Q2 (inMu_gen_TL, outMu_gen_TL); 
+        xbj_gen = PaAlgo::xbj (inMu_gen_TL, outMu_gen_TL);
+        nu_gen = inMu_gen_TL.E() - outMu_gen_TL.E(); 
+        W2_gen = PaAlgo::W2 (inMu_gen_TL, outMu_gen_TL); 
+        t_gen  = (targ_TL - proton_gen_TL) * (targ_TL - proton_gen_TL);  
 
-        //weight_PAMBH = Weight_PAM_BH(xbj_gen, Q2_gen, phi_gamma_gamma_gen, t_gen, inMu_gen_TL.E(), phase_fac); 
+        phi_gg_gen = phiRV(inMu_gen_TL, outMu_gen_TL, proton_gen_TL, gamma_gen_TL, true);
+        //weight_PAMBH = Weight_PAM_BH(xbj_gen, Q2_gen, phi_gg_gen, t_gen, inMu_gen_TL.E(), phase_fac); 
       }
 
     }
@@ -385,29 +436,33 @@ void UserEvent970(PaEvent & e) { // begin event loop
     	// Store info about incoming muon beam (inMu)
       static PaParticle beam; 
       static PaTrack beam_track; 
-      static PaTPar Par_beam;
+      static PaTPar par_beam;
 
 			static BeamFluxParams beamParams; // Create an instance of BeamFluxParams
       // No TiS check yet for event selection so let it be true for all events 
       // Will actually make a cut on the TiS later  
-	 		flux_flag = beamFluxCheck(e, v, iv, Run, true, beamParams, beam, beam_track, Par_beam, eventFlags);
+	 		flux_flag = beamFluxCheck(e, v, iv, Run, true, beamParams, beam, beam_track, par_beam, eventFlags);
 			if (!flux_flag) continue;  
+
+      if (par_beam.Q() > 0) { // Get the charge of the beam 
+        Q_beam = 1;
+      } else {Q_beam = -1;}
 
       //*******************************************
       // Store info about scattered muon (outMu)
       static PaParticle outMu; 
       static PaTrack outMu_track; 
-      static PaTPar Par_outMu; 
+      static PaTPar par_outMu; 
 
       static OutMuParams outMuParams; // Create an instance of OutMuParams 
       outMu_flag = outMuCheck(e, v, iv, Run, beam, HodoHelper, trig_flag, outMuParams,    
-                            outMu, outMu_track, Par_outMu, eventFlags); 
+                            outMu, outMu_track, par_outMu, eventFlags); 
       if (!outMu_flag) continue; 
 
       //*******************************************
       // Kinematic variables ... (1/2)
-      inMu_TL  = Par_beam.LzVec(M_mu); 
-      outMu_TL = Par_outMu.LzVec(M_mu);  
+      inMu_TL  = par_beam.LzVec(M_mu); 
+      outMu_TL = par_outMu.LzVec(M_mu);  
 
       Q2  = PaAlgo::Q2 (inMu_TL, outMu_TL); //Q2 = -(inMu_TL - outMu_TL).M2();
       y   = (inMu_TL.E() - outMu_TL.E()) / inMu_TL.E();
@@ -698,7 +753,6 @@ void UserEvent970(PaEvent & e) { // begin event loop
         //std::cout << std::endl << "DEBUG:: " << Evt << std::endl;  
 
         // Find visible pi0 contamination in sample
-        int pairCount = 0;
         for (int iLow = 0; iLow < pi0_cl_id.size(); ++iLow) { // Begin loop over photon pairs 
           const auto& cl_LowE = e.vCaloClus(pi0_cl_id[iLow]);
           int DVCS_calo = e.vCaloClus(cl_id[0]).iCalorim(); 
@@ -718,7 +772,7 @@ void UserEvent970(PaEvent & e) { // begin event loop
           TLorentzVector pi0Cand_TL = gamma_TL + gammaLow_TL;
           M_pi0 = pi0Cand_TL.M(); 
           E_gammaLow = gammaLow_TL.E();
-          pairCount++;
+
         } // End loop over photon pairs 
 
       } // End loop over all events that satisfy kinematic cuts 

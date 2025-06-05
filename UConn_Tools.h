@@ -88,7 +88,7 @@ bool outMuCheck(const PaEvent &e, const PaVertex &v, int vertexIndex, int Run, c
 
 bool exclLepto (const PaEvent &e, bool leptoMC); 
 
-double phiRV(TLorentzVector inMu_TL, TLorentzVector outMu_TL, TLorentzVector proton_TL, TLorentzVector gamma_TL);
+double phiRV(TLorentzVector inMu_TL, TLorentzVector outMu_TL, TLorentzVector proton_TL, TLorentzVector gamma_TL, bool eIsMC = false);
 
 // *************************  RHO0 FUNCTIONS FOR PHAST EVENT SELECTION  ***************************
 bool crossCheck(const PaEvent &e, const PaVertex & v,int iv, int Run,const BeamFluxParams &params, 
