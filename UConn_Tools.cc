@@ -43,7 +43,7 @@
 // Constructor with mode selector 
 EventFlags::EventFlags(Mode mode) {
 	switch (mode) {
-		case DVCS: 
+		case DVCS:  
 			// Event flags 
 			flags.push_back({false, 0, 0, "allEvts_flag", "Total no. of events processed by PHAST user script"});
 			flags.push_back({false, 0, 0, "pVtx_flag", "No. of events with a primary vertex"});
@@ -57,11 +57,15 @@ EventFlags::EventFlags(Mode mode) {
 			flags.push_back({false, 0, 0, "SI_flag", "No. of events where beam is detected by SI"});
 			flags.push_back({false, 0, 0, "crossCells_flag", "No. of events where beam crosses full target length"});
 			flags.push_back({false, 0, 0, "meantime_flag", "No. of events where beam track meantime is within flux requirements"});
-			//flags.push_back({false, 0, 0, "timeInSpill_flag", "No. of events where time in spill is within flux requirements"});
+			flags.push_back({false, 0, 0, "timeInSpill_flag", "No. of events where time in spill is within flux requirements"});
+			flags.push_back({false, 0, 0, "flux_Check", "STATS* No. of events which satisfy flux check"});
+			flags.push_back({false, 0, 0, "fluxTiS_Check", "STATS* No. of events which satisfy flux check and time in spill"});
 			// outMu flags 
+			flags.push_back({false, 0, 0, "outMuFound_flag", "No. of events with a scattered muon (before full Hodo check)"});
+			flags.push_back({false, 0, 0, "passHodo_flag", "No. of events where scattered muon passes full Hodoscope check"});
 			flags.push_back({false, 0, 0, "vtxInTarget_flag", "No. of events where the vertex is in the target"});
 			flags.push_back({false, 0, 0, "trigger_flag", "No. of events with MT, LT, OT or LAST physics triggers"});
-			//flags.push_back({false, 0, 0, "passHodo_flag", "No. of events where scattered muon passes Hodoscope check"});
+			flags.push_back({false, 0, 0, "passHodoStat_flag", "No. of events where scattered muon passes Hodoscope check (DVCS stats)"});
 			flags.push_back({false, 0, 0, "charge_flag", "No. of events where scattered muon has the same charge as the beam"});
 			flags.push_back({false, 0, 0, "zFirstLast_flag", "No. of events where first and last scattered muon z coord. are measured before and after SM1"});
 			break; 
@@ -88,6 +92,7 @@ EventFlags::EventFlags(Mode mode) {
 	}
 }
 
+// Create a new flag 
 void EventFlags::createFlag(const std::string& flagName, const std::string& description) {
     for (const auto& flag : flags) {
         if (std::get<3>(flag) == flagName) return; // avoid duplicates
@@ -101,6 +106,7 @@ void EventFlags::resetFlags() {
     }
 }
 
+// Set the flag to true by name (default is false for all flags)
 void EventFlags::setFlagByName(const std::string& flagName, bool value, const std::string& description) {
     for (auto& flag : flags) {
         if (std::get<3>(flag) == flagName) {
@@ -120,6 +126,7 @@ void EventFlags::setFlagByName(const std::string& flagName, bool value, const st
     }
 }
 
+// Increments counters for all flags (use once at the end of event loop)
 void EventFlags::incrementCounters() {
     for (auto& flag : flags) {
         if (std::get<0>(flag)) {
@@ -128,12 +135,24 @@ void EventFlags::incrementCounters() {
     }
 }
 
+// Prints the values of all flags (place in the UserJobEnd block)
 void EventFlags::printFlags() const {
     for (const auto& flag : flags) {
-        std::cout << std::get<1>(flag) << " : "    // event-level counter
-                  << std::get<2>(flag) << " : "    // multi counter
+        std::cout << std::get<1>(flag) << " : "      // event-level counter
+                  << std::get<2>(flag) << " : "      // multi counter
                   << std::get<4>(flag) << std::endl; // description
     }
+}
+
+// Returns the current boolean value of the flag with the given name 
+bool EventFlags::getFlag(const std::string& flagName) const {
+    for (const auto& flag : flags) {
+        if (std::get<3>(flag) == flagName)
+            return std::get<0>(flag);  // Return the flag's boolean value
+    }
+    // If flag not found, optionally print warning or just return false
+    // std::cerr << "Warning: Flag '" << flagName << "' not found." << std::endl;
+    return false;
 }
 
 // *************************  PRINTDEBUG  *************************** 
@@ -176,7 +195,7 @@ BeamFluxParams::BeamFluxParams(double rmax, double ymax, double zmin,
 {}
 
 // Define the function 
-bool beamFluxCheck(const PaEvent &e, const PaVertex &v, int vertexIndex, int Run, bool TiS_flag, 
+bool beamFluxCheck(const PaEvent &e, const PaVertex &v, int vertexIndex, int Run,
 				const BeamFluxParams &params, PaParticle &beam, PaTrack &beam_track, 
 				PaTPar &Par_beam, EventFlags &flags) { // beamFlux loop begins 
 
@@ -253,11 +272,6 @@ bool beamFluxCheck(const PaEvent &e, const PaVertex &v, int vertexIndex, int Run
 		} else {flags.setFlagByName("meantime_flag", true);}
 	} else {flags.setFlagByName("meantime_flag", true);}
 
- 	// Time in spill is within flux requirements
- 	if (!TiS_flag) {
-		return false; 
-	} else {flags.setFlagByName("timeInSpill_flag", true);} 
-
 	// Return true if all conditions are met
 	return true;
 } 
@@ -279,47 +293,49 @@ OutMuParams::OutMuParams(double rmax, double ymax, double zmin, double zmax,
 
 // Define the function 
 bool outMuCheck(const PaEvent &e, const PaVertex &v, int vertexIndex, int Run, const PaParticle &beam, 
-				PaHodoHelper* HodoHelper, bool trig_flag, const OutMuParams &params,
+				PaHodoHelper* HodoHelper, bool trig_flag, bool TiS_flag, const OutMuParams &params,
 				PaParticle &outMu, PaTrack &outMu_track, PaTPar &Par_outMu, EventFlags &flags) {
 
-	// Get the index of the scattered muon WITHOUT CHECKING IF IT PASSES the hodoscope check
 	// HodoHelper->iMuPrim(v, checkYokeSM2, reject2muEvents, checkCanBeMuon, true, minXX0muPr, true, true) 
-	int i_omu = -1; 
-	i_omu = HodoHelper->iMuPrim(v,false,false,true,false,15);  
+	// Loose check: no hodo requirement
+	int i_omu = HodoHelper->iMuPrim(v, false, false, true, false, 15);
 	if (i_omu == -1) {
 		return false; 
-	}
+	} else {flags.setFlagByName("outMuFound_flag", true);}
 
 	// Check that the vertex is in the target
 	const PaTPar& Par_beam = beam.ParInVtx(vertexIndex); // beam parameters at the vertex
-	const PaParticle & outMu_noHodo = e.vParticle(i_omu); 
-	const PaTPar& Par_outMu_noHodo = outMu_noHodo.ParInVtx(vertexIndex); // scattered muon parameters at the vertex 
 	if(!PaAlgo::InTarget(Par_beam,'O',Run, params.Rmax, params.Ymax, params.tgt_zmin, params.tgt_zmax, params.RmaxMC)) {
 		return false; 
-	} else {flags.setFlagByName("vtxInTarget_flag", true);}
+	} else {
+		if (TiS_flag) {flags.setFlagByName("vtxInTarget_flag", true);} 
+	}
 
 	// Check that there is a physics trigger for this event (MT, LT, OT or LAST)
 	if (trig_flag == 0) {
 		return false; 
-	} else {flags.setFlagByName("trigger_flag", true);}
+	} else {
+		if (TiS_flag) {flags.setFlagByName("trigger_flag", true);}
+	}
 
-/* 	// Get the index for the scattered muon IF IT PASSES the hodoscope check 
-	int i_omu_check_hodo = HodoHelper->iMuPrim(v,false,false,true,true,15,true,true);  
-	// if scattered muon passed the hodoscope use the corresponding index, if not proceed with other index 
-	if (i_omu_check_hodo == -1) {
-		return false; 
-	} else {flags.setFlagByName("passHodo_flag", true);}
-	i_omu = i_omu_check_hodo; */
+	// Strict check: with hodo and full cuts
+	int i_omu_check_hodo = HodoHelper->iMuPrim(v, false, false, true, true, 15, true, true);
+	if (i_omu_check_hodo != -1) {
+		i_omu = i_omu_check_hodo;  // Use better muon if found
+		if (TiS_flag) {flags.setFlagByName("passHodoStat_flag", true);}
+		flags.setFlagByName("passHodo_flag", true);
+	}
 
 	// Check that the scattered muon has the same charge as the beam  
 	outMu = e.vParticle(i_omu);
-	// beam.Q() is not safe as it may return -777 which means the associated track was reconstructed in a field free region (charge is unkown)
 	TVector3 SM2center(0, 0, 1825);
     const TVector3 SM2field = PaSetup::Ref().MagField(SM2center);
     const int inMuQ = SM2field(1) < 0 ? 1 : -1;
 	if (outMu.Q() != inMuQ) {
 		return false; 
-	} else {flags.setFlagByName("charge_flag", true);}
+	} else {
+		if (flags.getFlag("passHodo_flag") == 1) {flags.setFlagByName("charge_flag", true);}
+	}
 
 	int outMu_itrack = outMu.iTrack();
 	outMu_track = e.vTrack(outMu_itrack);
@@ -327,7 +343,9 @@ bool outMuCheck(const PaEvent &e, const PaVertex &v, int vertexIndex, int Run, c
 	// Check that the first and last z coordinates are measured before and after SM1
 	if (!(outMu_track.ZFirst() < params.zfirstlast && outMu_track.ZLast() > params.zfirstlast)) {
 		return false; 
-	} else {flags.setFlagByName("zFirstLast_flag", true);}
+	} else {
+		if (flags.getFlag("charge_flag") == 1) {flags.setFlagByName("zFirstLast_flag", true);}
+	}
 
 	// If all checks pass, return true and the relevant objects
 	return true;

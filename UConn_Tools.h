@@ -32,6 +32,7 @@ struct EventFlags {
     void setFlagByName(const std::string& flagName, bool value, const std::string& description = "");
     void incrementCounters();
     void printFlags() const;
+    bool getFlag(const std::string& flagName) const;
 };
 
 // Print debug statements if verbose_mode is true 
@@ -63,7 +64,7 @@ struct BeamFluxParams {
 };
 
 
-bool beamFluxCheck(const PaEvent &e, const PaVertex &v, int vertexIndex, int Run, bool TiS_flag, 
+bool beamFluxCheck(const PaEvent &e, const PaVertex &v, int vertexIndex, int Run, 
                 const BeamFluxParams &params, PaParticle &beam, PaTrack &beam_track, 
                 PaTPar &Par_beam, EventFlags &flags);
 
@@ -80,11 +81,11 @@ struct OutMuParams {
     // Constructor declaration only
     OutMuParams(double rmax = 1.9, double ymax = 1.2, double zmin = -318.5, 
                 double zmax = -78.5, int rmaxMC = 2, double zfirstlast = 350);
-};
+}; 
 
 bool outMuCheck(const PaEvent &e, const PaVertex &v, int vertexIndex, int Run, const PaParticle &beam, 
-				PaHodoHelper* HodoHelper, bool trig_flag, const OutMuParams &params,
-				PaParticle &outMu, PaTrack &outMu_track, PaTPar &Par_outMu, EventFlags &flags); 
+				PaHodoHelper* HodoHelper, bool trig_flag, bool TiS_flag, const OutMuParams &params,
+				PaParticle &outMu, PaTrack &outMu_track, PaTPar &Par_outMu, EventFlags &flags);
 
 bool exclLepto (const PaEvent &e, bool leptoMC); 
 
