@@ -13,7 +13,7 @@
 #include "PaEvent.h"
 #include "TLorentzVector.h"
 #include "PaHodoHelper.h"
-
+ 
 // ************************************************************** //
 // .H script containing functions used for event selection.       //
 // See .CC script for function def. and additional details.       //
@@ -80,14 +80,14 @@ struct OutMuParams {
 
     // Constructor declaration only
     OutMuParams(double rmax = 1.9, double ymax = 1.2, double zmin = -318.5, 
-                double zmax = -78.5, int rmaxMC = 2, double zfirstlast = 350);
+                double zmax = -78.5, double rmaxMC = 2.0, double zfirstlast = 350);
 }; 
 
 bool outMuCheck(const PaEvent &e, const PaVertex &v, int vertexIndex, int Run, const PaParticle &beam, 
 				PaHodoHelper* HodoHelper, bool trig_flag, bool TiS_flag, const OutMuParams &params,
 				PaParticle &outMu, PaTrack &outMu_track, PaTPar &Par_outMu, EventFlags &flags);
 
-bool exclLepto (const PaEvent &e, bool leptoMC); 
+bool exclLepto (const PaEvent &e, bool leptoMC);  
 
 double phiRV(TLorentzVector inMu_TL, TLorentzVector outMu_TL, TLorentzVector proton_TL, TLorentzVector gamma_TL, bool eIsMC = false);
 
