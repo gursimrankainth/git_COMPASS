@@ -10,7 +10,13 @@ time_t getFileModificationTime(const string& filePath) {
     struct stat fileInfo;
     if (stat(filePath.c_str(), &fileInfo) == 0)
         return fileInfo.st_mtime;
-    return 0; // Return 0 if file does not exist
+    return 0;
+}
+
+// Function to check if a file exists
+bool fileExists(const string& filePath) {
+    struct stat buffer;
+    return (stat(filePath.c_str(), &buffer) == 0);
 }
 
 // Function to copy a file
@@ -19,57 +25,51 @@ void copyFile(const string& source, const string& destination) {
     ofstream dest(destination, ios::binary);
     if (src && dest) {
         dest << src.rdbuf();
-        cout << "Updated: " << destination << " from " << source << endl;
+        cout << "Copied: " << source << " -> " << destination << endl;
     } else {
         cerr << "Error copying: " << source << " -> " << destination << endl;
     }
 }
 
 int main() {
-    char mode;
-    cout << "Are you running this locally or remotely? (l/r): ";
-    cin >> mode;
+    // Remote server paths only
+    vector<pair<string, string>> filePairs = {
+        {"/afs/cern.ch/user/g/gkainth/phast/user/u970_DVCS.cc", "/afs/cern.ch/user/g/gkainth/phastPackages/git_COMPASS/u970_DVCS.cc"},
+        {"/afs/cern.ch/user/g/gkainth/phast/user/UConn_Tools.h", "/afs/cern.ch/user/g/gkainth/phastPackages/git_COMPASS/UConn_Tools.h"},
+        {"/afs/cern.ch/user/g/gkainth/phast/user/UConn_Tools.cc", "/afs/cern.ch/user/g/gkainth/phastPackages/git_COMPASS/UConn_Tools.cc"},
+        {"/afs/cern.ch/user/g/gkainth/postPHAST.py", "/afs/cern.ch/user/g/gkainth/phastPackages/git_COMPASS/postPHAST.py"}
+    };
 
-    vector<pair<string, string>> filePairs;
-
-    if (mode == 'l') {
-        // Local paths
-        filePairs = {
-            {"/Users/gursimran/cern/phast.8.032/user/u970_DVCS.cc", "/Users/gursimran/cern/phastPackages/git_COMPASS/u970_DVCS.cc"},
-            {"/Users/gursimran/cern/phast.8.032/user/UConn_Tools.h", "/Users/gursimran/cern/phastPackages/git_COMPASS/UConn_Tools.h"},
-            {"/Users/gursimran/cern/phast.8.032/user/UConn_Tools.cc", "/Users/gursimran/cern/phastPackages/git_COMPASS/UConn_Tools.cc"}
-        };
-    } else if (mode == 'r') {
-        // Remote server paths
-        filePairs = {
-            {"/afs/cern.ch/user/g/gkainth/phast/user/u970_DVCS.cc", "/afs/cern.ch/user/g/gkainth/phastPackages/git_COMPASS/u970_DVCS.cc"},
-            {"/afs/cern.ch/user/g/gkainth/phast/user/UConn_Tools.h", "/afs/cern.ch/user/g/gkainth/phastPackages/git_COMPASS/UConn_Tools.h"},
-            {"/afs/cern.ch/user/g/gkainth/phast/user/UConn_Tools.cc", "/afs/cern.ch/user/g/gkainth/phastPackages/git_COMPASS/UConn_Tools.cc"}
-        };
-    } else {
-        cerr << "Invalid input. Use 'l' for local or 'r' for remote." << endl;
-        return 1;
-    }
-
-    // Iterate over file pairs and sync them based on modification time
+    // Sync logic
     for (const auto& filePair : filePairs) {
         string file1 = filePair.first;
         string file2 = filePair.second;
 
-        // If destination file doesn't exist, just copy source to destination
-        struct stat buffer;
-        if (stat(file2.c_str(), &buffer) != 0) {
+        bool exists1 = fileExists(file1);
+        bool exists2 = fileExists(file2);
+
+        if (!exists1 && !exists2) {
+            cerr << "Both files missing: " << file1 << " and " << file2 << endl;
+            continue;
+        }
+
+        if (!exists1 && exists2) {
+            copyFile(file2, file1);
+            continue;
+        }
+        if (exists1 && !exists2) {
             copyFile(file1, file2);
             continue;
         }
 
+        // Both exist
         time_t time1 = getFileModificationTime(file1);
         time_t time2 = getFileModificationTime(file2);
 
         if (time1 > time2) {
-            copyFile(file1, file2);  // Editable script is newer
+            copyFile(file1, file2);
         } else if (time2 > time1) {
-            copyFile(file2, file1);  // Backup is newer
+            copyFile(file2, file1);
         } else {
             cout << "No changes: " << file1 << " and " << file2 << " are identical." << endl;
         }
@@ -77,3 +77,4 @@ int main() {
 
     return 0;
 }
+

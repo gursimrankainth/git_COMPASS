@@ -81,7 +81,7 @@ void UserEvent970(PaEvent & e) { // begin event loop
     static int    EvtInSpill;   // event number in spill 
     static int    Spill;        // spill number
     static double TimeInSpill;  // time in spill  
-    static float  Chi2;         // Chi2 of the reconstructed vertex 
+    static float  Chi2;         // Chi2 of the reconstructed vertex
     static int    Nprim;        // Number of tracks in primary vertex (-1 in fot found)
     static int    Q_beam;       // Charge of the beam 
     static int    trig_mask;
@@ -213,6 +213,7 @@ void UserEvent970(PaEvent & e) { // begin event loop
         tree->Branch("Chi2", &Chi2, "Chi2/F");
         tree->Branch("Spill", &Spill, "Spill/I");
         tree->Branch("Q_beam", &Q_beam, "Q_beam/I");
+        tree->Branch("TiS_flag", &TiS_flag, "TiS_flag/O");
         // Trigger information
         tree->Branch("trig_MT", &trig_MT, "trig_MT/O");
         tree->Branch("trig_LT", &trig_LT, "trig_LT/O");
@@ -848,7 +849,7 @@ void UserEvent970(PaEvent & e) { // begin event loop
         if ((t_fit < -0.08 && t_fit > -0.64) || std::isnan(t_fit)) {
           t_cut = true;
           eventFlags.setFlagByName("tFit_flag", true);
-          std::cout << std::endl << "DEBUG:: " << Evt << "," << t_fit << std::endl;  
+          std::cout << std::endl << "DEBUG::" << Evt << ","  << Run << ","  << cl_id[0] << "," << y_fit << "," << Q2_fit << "," << t_fit << std::endl;  
         }
 /*         if (t_fit >= -0.08 || t_fit <= -0.64) {  
           t_cut = false; 
