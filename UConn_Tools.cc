@@ -131,7 +131,7 @@ void EventFlags::incrementCounters() {
             std::get<1>(flag)++;
         }
     }
-}
+} 
 
 // Prints the values of all flags (place in the UserJobEnd block)
 void EventFlags::printFlags() const {
@@ -339,7 +339,7 @@ bool outMuCheck(const PaEvent &e, const PaVertex &v, int vertexIndex, int Run, c
 			flags.setFlagByName("charge_flag", true);
 			charge = true; 
 		}
-	}
+	} 
 
 	int outMu_itrack = outMu.iTrack();
 	outMu_track = e.vTrack(outMu_itrack);
@@ -367,46 +367,46 @@ bool outMuCheck(const PaEvent &e, const PaVertex &v, int vertexIndex, int Run, c
 // Global flag for LEPTO MC  
 extern bool leptoMC; // Set to true when processing LEPTO data, false otherwise 
 
-bool exclLepto (const PaEvent &e, bool leptoMC) { 
-	if (leptoMC) {
-		// Return true if the event is not MC 
-		if (!e.IsMC()) {
-			return true;
-		}  
+bool exclLepto(const PaEvent &e) {
+	// Define constants 
+	const int kLujetFlavourCodeMuMinus = +13;
+	const int kLujetFlavourCodeMuPlus  = -13;
+	const int kLujetFlavourCodeProton  = +2212;
+	const int kLujetFlavourCodeGamma   = +22;
+	const int kLujetStatusCodeUnfragmentedParticle = +1;
 
-		// Check to see what particles are present
-		int count   = 0; 
-		bool muon   = false; 
-		bool proton = false; 
-		bool gamma1 = false; 
-		bool gamma2 = false; 
-		int Nparticles; 
-		vector <LUJET> vlj; 
+	// Particle counters
+	unsigned int topology_count = 0U;
+	unsigned int muon_count     = 0U;
+	unsigned int proton_count   = 0U;
+	unsigned int gamma_count    = 0U;
+	unsigned int other_count    = 0U;
 
-		e.MCgen(Nparticles, vlj);
-		for (auto &v : vlj) { // Begin loop over particles in jet 
-			if (v.k[0] != 1) continue; // only want to look at final state particles 
-			if ((v.k[1] == 13) || (v.k[1] == -13)) {
-				muon = true; 
-			}
-			if (v.k[1] == 2212) {
-				proton = true; 
-			}
-			if (v.k[1] == 22) {
-				if (!gamma1) {
-					gamma1 = true;
-				} else {gamma2 = true;}
-			}
-			count ++; 
-		} // End loop over particles in jet 
-		
-		if ((count == 4) && muon && proton && gamma1 && gamma2) { // exclusive event 
-			return true; 
+	int Nparticles;
+	std::vector<LUJET> vlj;
+	e.MCgen(Nparticles, vlj);
+
+	for (const auto &v : vlj) { // Begin loop over particles in lujet
+		if (v.k[0] != kLujetStatusCodeUnfragmentedParticle) continue;
+		++topology_count;
+
+		const int flavour_code = v.k[1];
+		if (flavour_code == kLujetFlavourCodeMuMinus || flavour_code == kLujetFlavourCodeMuPlus) {
+			++muon_count;
+		} else if (flavour_code == kLujetFlavourCodeProton) {
+			++proton_count;
+		} else if (flavour_code == kLujetFlavourCodeGamma) {
+			++gamma_count;
+		} else {
+			++other_count;
 		}
-	}
 
-	return false; 
+	} // end loop over particles in lujet 
 
+	bool is_pi0 = (muon_count > 0U) && (proton_count > 0U) && (gamma_count > 1U) && (topology_count == 4U);
+
+	// Return true if this is NOT a pi0-exclusive event
+	return !is_pi0;
 }
 
 
@@ -440,6 +440,23 @@ double phiRV(TLorentzVector inMu_TL, TLorentzVector outMu_TL, TLorentzVector pro
 	return phi; 
 }
 
+
+// *************************  BUILD PHOTON VECTORS (DVCS)  ***************************
+// This funtion is used to build TLorentz vectors containing information about the cluster and reconstructed real photon 
+// 1. Function: buildClusterVecs() -> build the TLorentz vectors for the clusters 
+// 2. Input (2): PaEvent object, PaVertex object, int cluster index, TLorentz vectors for the photon and cluster 
+// 3. Output (1): nothing -> it will jsut modify the already existing vectors it takes as an input  
+// 4. Example usage: https://github.com/gursimrankainth/git_COMPASS/blob/main/u970_DVCS.cc 
+void buildClusterVecs(const PaEvent &e, const PaVertex &v, int cl_id, TLorentzVector &gamma_TL, TLorentzVector &cluster_TL) {
+	const auto& cluster = e.vCaloClus(cl_id);
+  double phdz = cluster.Z() - v.Z();
+  double phdy = cluster.Y() - v.Y();
+  double phdx = cluster.X() - v.X();
+  double phL  = TMath::Sqrt(phdx * phdx + phdy * phdy + phdz * phdz);
+  double cl_E = cluster.E();
+  gamma_TL.SetPxPyPzE(cl_E * phdx / phL, cl_E * phdy / phL, cl_E * phdz / phL, cl_E);
+  cluster_TL.SetXYZT(cluster.X(), cluster.Y(), cluster.Z(), cluster.E());
+}
 
  // *************************  X-CHECK 1 RHO0 *************************** 
 bool crossCheck(const PaEvent &e, const PaVertex & v,int iv, int Run,const BeamFluxParams &params, PaParticle &beam, PaTrack &beam_track, PaTPar &Par_beam, PaHodoHelper* HodoHelper, const OutMuParams &outparams, PaParticle &outMu, PaTrack &outMu_track,  PaTPar &Par_outMu,EventFlags &flags){

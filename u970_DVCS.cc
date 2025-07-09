@@ -43,20 +43,21 @@ EventFlags eventFlags(EventFlags::DVCS); // Create an instance of flags and coun
 
 // Global user selection flags 
 bool verbose_mode = false; // Create an instance of verbose_mode
+// this is a good example of what can be an environmental variable 
 bool leptoMC      = false; // Set to true for LEPTO MC to remove events with exclusive event topology 
 
 //*****************************************************************************
 void UserEvent970(PaEvent & e) { // begin event loop
 
     // Define constants
-    static PaHodoHelper* HodoHelper = NULL; 
-    static TiSRange*     tis_range  = NULL; 
-    static PaCamera*     cam_inst   = NULL;
+    static PaHodoHelper* HodoHelper = nullptr; 
+    static TiSRange*     tis_range  = nullptr; 
+    static PaCamera*     cam_inst   = nullptr;
 
     //const double M_pi    = G3partMass[8];  // Pion mass 
     //const double M_gamma = G3partMass[1];  // Photon mass
-    const double M_mu    = G3partMass[5];  // Muon mass
-    const double M_p     = G3partMass[14]; // Proton mass 
+    const double M_mu = G3partMass[5];  // Muon mass
+    const double M_p  = G3partMass[14]; // Proton mass 
 
     // Declare all objects globally
     // Add histograms as well if needed (ex. static TH1F* h97_Zprim  = NULL;)
@@ -93,13 +94,13 @@ void UserEvent970(PaEvent & e) { // begin event loop
     static TLorentzVector outMu_TL;              // energy-momentum four vector of the scattered muon
     static TLorentzVector targ_TL(0, 0, 0, M_p); // energy momentum four-vector of the target proton 
     static TLorentzVector gamma_TL;              // energy-momentum four vector of the real photon 
+    static TLorentzVector cluster_TL;            // vector used to store the position and energy information of the cluster
     static TLorentzVector p_camera_TL;           // energy-momentum four vector of the proton measured by camera
     static TLorentzVector gammaLow_TL;           // energy-momentum four vector of the low energy photon (used to find pi0)
+    static TLorentzVector clusterLow_TL;         // vector used to store the position and energy information of the low-energy cluster
 
-    static int    low_calo;    // calorimeter ID for low energy cluster used for pi0 reconstruction 
-    static int    excl_calo;   // calorimeter ID for exclusive photon cluster  
-    static double M_pi0;       // pi0 invariant mass 
-    static double E_gammaLow;  // low-energy photon energy  
+    static int low_calo;    // calorimeter ID for low energy cluster used for pi0 reconstruction 
+    static int excl_calo;   // calorimeter ID for exclusive photon cluster  
 
     static double y;   // fractional energy loss of the incoming lepton 
     static double nu;  // energy of the virtual photon 
@@ -107,12 +108,6 @@ void UserEvent970(PaEvent & e) { // begin event loop
     static double W2;  // effective mass of the final state hadron system squared 
     static double xbj; // measure of the elasticity of the scattering process 
     static double t;   // four-momentum transfer squared of the nucleon 
-
-    // Without using CAMERA information, the exclusive (DVCS) process can be selected through the 
-    // detection of only the incident and outgoing muons and the photon, and using a cut on 
-    // the missing energy or on the missing mass of a particle that is assumed to be a proton
-    static double E_miss; 
-    static double M2_miss; 
 
     // Exclusivity variables 
     static double delta_phi; 
@@ -124,6 +119,7 @@ void UserEvent970(PaEvent & e) { // begin event loop
     static TVector3 pVtxFit_vec; 
     static TVector3 posRingAFit_vec; 
     static TVector3 posRingBFit_vec; 
+    static TVector3 clusterFit_vec; // x, y and E of the cluster post kinematic fit 
 
     static TLorentzVector inMuFit_TL; 
     static TLorentzVector outMuFit_TL; 
@@ -147,7 +143,7 @@ void UserEvent970(PaEvent & e) { // begin event loop
     static double gamma_sigmaY;
     static double gamma_sigmaE;
 
-    static double proton_sigmaP;
+    static double proton_sigmaP; 
     static double proton_sigmaTheta;
     static double proton_sigmaPhi;
 
@@ -168,11 +164,11 @@ void UserEvent970(PaEvent & e) { // begin event loop
     static double t_fit;   
 
     //*******************************************
-    // HEPGEN data (prior to event selection) -> used for acceptance study 
+    // HEPGEN BH data (prior to event selection) -> used for acceptance study 
     static TLorentzVector inMu_gen_TL ; 
     static TLorentzVector outMu_gen_TL; 
     static TLorentzVector gamma_gen_TL; 
-    static TLorentzVector proton_gen_TL; 
+    static TLorentzVector proton_gen_TL;
     static TLorentzVector q_gen;         // four momentum of the virtual photon
 
     static double y_gen; 
@@ -192,8 +188,12 @@ void UserEvent970(PaEvent & e) { // begin event loop
 
     //*******************************************
     // Event selection flags (not the same as statistic counter flags)
+    bool trig_MT   = false;
+    bool trig_LT   = false;
+    bool trig_OT   = false;
+    bool trig_LAST = false;
     bool trig_flag = false; 
-    bool TiS_flag  = false;
+    bool TiS_flag  = true;
     bool fit_conv  = false; 
     bool save_evt  = false; 
 
@@ -213,12 +213,20 @@ void UserEvent970(PaEvent & e) { // begin event loop
         tree->Branch("Chi2", &Chi2, "Chi2/F");
         tree->Branch("Spill", &Spill, "Spill/I");
         tree->Branch("Q_beam", &Q_beam, "Q_beam/I");
+        // Trigger information
+        tree->Branch("trig_MT", &trig_MT, "trig_MT/O");
+        tree->Branch("trig_LT", &trig_LT, "trig_LT/O");
+        tree->Branch("trig_OT", &trig_OT, "trig_OT/O");
+        tree->Branch("trig_LAST", &trig_LAST, "trig_LAST/O");
         // Particle/vertex vectors 
         tree->Branch("inMu_TL", &inMu_TL);
         tree->Branch("outMu_TL", &outMu_TL);
         tree->Branch("gamma_TL", &gamma_TL);
-        tree->Branch("pVtx_vec", &pVtx_vec);
+        tree->Branch("cluster_TL", &cluster_TL);
         tree->Branch("p_camera_TL", &p_camera_TL);
+        tree->Branch("gammaLow_TL", &gammaLow_TL);
+        tree->Branch("clusterLow_TL", &clusterLow_TL);
+        tree->Branch("pVtx_vec", &pVtx_vec); 
         tree->Branch("posRingA_vec", &posRingA_vec);
         tree->Branch("posRingB_vec", &posRingB_vec);
         // Kinematic variables 
@@ -228,14 +236,9 @@ void UserEvent970(PaEvent & e) { // begin event loop
         tree->Branch("Q2", &Q2, "Q2/D");
         tree->Branch("W2", &W2, "W2/D");
         tree->Branch("xbj", &xbj, "xbj/D");
-        // Missing energy/mass (assuming missing proton)
-        tree->Branch("E_miss", &E_miss, "E_miss/D");
-        tree->Branch("M2_miss", &M2_miss, "M2_miss/D");
         // Invariant mass of visible pi0
-        tree->Branch("M_pi0", &M_pi0, "M_pi0/D");
         tree->Branch("low_calo", &low_calo, "low_calo/I");
         tree->Branch("excl_calo", &excl_calo, "excl_calo/I");
-        tree->Branch("E_gammaLow", &E_gammaLow, "E_gammaLow/D");  
         // Exclusivity variables      
         tree->Branch("M2x", &M2x, "M2x/D");
         tree->Branch("delta_Z", &delta_Z, "delta_Z/D");
@@ -245,9 +248,9 @@ void UserEvent970(PaEvent & e) { // begin event loop
         tree->Branch("inMuFit_TL", &inMuFit_TL);
         tree->Branch("outMuFit_TL", &outMuFit_TL);
         tree->Branch("gammaFit_TL", &gammaFit_TL);
-        tree->Branch("gammaLow_TL", &gammaLow_TL);
-        tree->Branch("pVtxFit_vec", &pVtxFit_vec);
         tree->Branch("protonFit_TL", &protonFit_TL);
+        tree->Branch("pVtxFit_vec", &pVtxFit_vec);
+        tree->Branch("clusterFit_vec", &clusterFit_vec);
         tree->Branch("posRingAFit_vec", &posRingAFit_vec);
         tree->Branch("posRingBFit_vec", &posRingBFit_vec);
         // Kinematic fit 
@@ -289,13 +292,20 @@ void UserEvent970(PaEvent & e) { // begin event loop
         tree_MC->Branch("Chi2", &Chi2, "Chi2/F");
         tree_MC->Branch("Spill", &Spill, "Spill/I");
         tree_MC->Branch("Q_beam", &Q_beam, "Q_beam/I");
+        // Trigger information
+        tree_MC->Branch("trig_MT", &trig_MT, "trig_MT/O");
+        tree_MC->Branch("trig_LT", &trig_LT, "trig_LT/O");
+        tree_MC->Branch("trig_OT", &trig_OT, "trig_OT/O");
+        tree_MC->Branch("trig_LAST", &trig_LAST, "trig_LAST/O");
         // Particle/vertex vectors 
         tree_MC->Branch("inMu_TL", &inMu_TL);
         tree_MC->Branch("outMu_TL", &outMu_TL);
         tree_MC->Branch("gamma_TL", &gamma_TL);
-        tree_MC->Branch("gammaLow_TL", &gammaLow_TL);
-        tree_MC->Branch("pVtx_vec", &pVtx_vec);
+        tree_MC->Branch("cluster_TL", &cluster_TL);
         tree_MC->Branch("p_camera_TL", &p_camera_TL);
+        tree_MC->Branch("gammaLow_TL", &gammaLow_TL);
+        tree_MC->Branch("clusterLow_TL", &clusterLow_TL);
+        tree_MC->Branch("pVtx_vec", &pVtx_vec);
         tree_MC->Branch("posRingA_vec", &posRingA_vec);
         tree_MC->Branch("posRingB_vec", &posRingB_vec);
         // Kinematic variables 
@@ -305,14 +315,9 @@ void UserEvent970(PaEvent & e) { // begin event loop
         tree_MC->Branch("Q2", &Q2, "Q2/D");
         tree_MC->Branch("W2", &W2, "W2/D");
         tree_MC->Branch("xbj", &xbj, "xbj/D");
-        // Missing energy/mass (assuming missing proton)
-        tree_MC->Branch("E_miss", &E_miss, "E_miss/D");
-        tree_MC->Branch("M2_miss", &M2_miss, "M2_miss/D");
         // Invariant mass of visible pi0
-        tree_MC->Branch("M_pi0", &M_pi0, "M_pi0/D");
         tree_MC->Branch("low_calo", &low_calo, "low_calo/I");
         tree_MC->Branch("excl_calo", &excl_calo, "excl_calo/I");
-        tree_MC->Branch("E_gammaLow", &E_gammaLow, "E_gammaLow/D");  
         // Exclusivity variables      
         tree_MC->Branch("M2x", &M2x, "M2x/D");
         tree_MC->Branch("delta_Z", &delta_Z, "delta_Z/D");
@@ -322,8 +327,9 @@ void UserEvent970(PaEvent & e) { // begin event loop
         tree_MC->Branch("inMuFit_TL", &inMuFit_TL);
         tree_MC->Branch("outMuFit_TL", &outMuFit_TL);
         tree_MC->Branch("gammaFit_TL", &gammaFit_TL);
-        tree_MC->Branch("pVtxFit_vec", &pVtxFit_vec);
         tree_MC->Branch("protonFit_TL", &protonFit_TL);
+        tree_MC->Branch("pVtxFit_vec", &pVtxFit_vec);
+        tree_MC->Branch("clusterFit_vec", &clusterFit_vec);
         tree_MC->Branch("posRingAFit_vec", &posRingAFit_vec);
         tree_MC->Branch("posRingBFit_vec", &posRingBFit_vec);
         // Kinematic fit
@@ -412,18 +418,22 @@ void UserEvent970(PaEvent & e) { // begin event loop
     if (trig_mask & MT) {
         trigCheck += "MT ";
         trig_flag = true;
+        trig_MT = true; 
     }
     if (trig_mask & LT) {
         trigCheck += "LT ";
         trig_flag = true;
+        trig_LT = true;
     }
     if (trig_mask & OT) {
         trigCheck += "OT ";
         trig_flag = true;
+        trig_OT = true;
     }
     if (trig_mask & LAST) {
         trigCheck += "LAST ";
-        trig_flag = true;
+        trig_flag = true; 
+        trig_LAST = true;
     }
 
     //*******************************************
@@ -440,6 +450,7 @@ void UserEvent970(PaEvent & e) { // begin event loop
     eventFlags.createFlag("nCls_flag", "No. of events where high energy clusters are found in ECal 0, 1 or 2 only");
     eventFlags.createFlag("singleCl_flag", "No. of events where there is only a single high energy cluster in the ECals");
 
+    eventFlags.createFlag("protonAll_flag", "No. of events with proton candidates");
     eventFlags.createFlag("proton_flag", "No. of events where proton candidates have 0.1 < beta < 1");
     eventFlags.createFlag("delta_pt_flag", "No. of events where |delta_pt| < 0.3 GeV/c");
     eventFlags.createFlag("delta_phi_flag", "No. of events where |delta_phi| < 0.4 rad");
@@ -464,24 +475,24 @@ void UserEvent970(PaEvent & e) { // begin event loop
     TimeInSpill = e.TimeInSpill();  
 
     if (Run != LastRun) { // Reinitialize HodoHelper and tis_range only if the run number changes 
-        HodoHelper = & PaHodoHelper::Init("", true);  
+        HodoHelper = & PaHodoHelper::Init("/afs/cern.ch/user/g/gkainth/phast/dat/trigger_config/2016", true);  
         //tis_range  = new TiSRange("/Users/gursimran/cern/phastPackages/flux_files/flux_Johannes/2016/flux_files");
         tis_range  = new TiSRange("/afs/cern.ch/user/g/gkainth/phastPackages/flux_files/flux_Johannes/2016/flux_files");
         //Set_TiSrange("/afs/cern.ch/user/g/gkainth/phastPackages/flux_files/flux_Johannes/2016/flux_files", Run, Run);
         LastRun = Run;  // Update LastRun to the current run number
     }
- 
-    if (e.IsMC()) {
-      TiS_flag = true; 
-    } else {
-      TiS_flag = tis_range->CheckWindow(Run, Spill, TimeInSpill); // check the time in spill 
+
+    if (!e.IsMC()) {
+      TiS_flag = tis_range->CheckWindow(Run, Spill, TimeInSpill); // check the time in spill for real data
     }
+
     cam_inst = & PaCamera::GetInstance();
-    cam_inst->NewEvent(e);
+    cam_inst->NewEvent(e, e.IsMC()); // only have it like this for the x-check for the full analysis use cam_inst->NewEvent(e); 
+    //cam_inst->NewEvent(e);
 
     //*******************************************
     // Get MC PAM weights for HEPGEN and save to tree_gen 
-    if (e.IsMC()) { // Begin loop over MC data 
+    if (e.IsMC()) { // Begin loop over MC data (important only for HEPGEN BH but save it for all anyways) 
       NLUDATA ld; 
       if (e.MCgen(ld)) {
         weight_all  = ld.uservar[2]; 
@@ -534,8 +545,10 @@ void UserEvent970(PaEvent & e) { // begin event loop
     } // End loop over MC data 
 
     // Check for exclusive event topology in the case of LEPTO
-    bool exclEvt = exclLepto(e, leptoMC); 
-    if (exclEvt) return;  
+    enum class LujetCheckStatus {NOT_MC, I};
+    if (leptoMC && !exclLepto(e)) {
+        return;
+    }
 
     //*******************************************  
     eventFlags.setFlagByName("allEvts_flag", true); 
@@ -553,7 +566,6 @@ void UserEvent970(PaEvent & e) { // begin event loop
 
 			//*******************************************
     	// Store info about incoming muon beam (inMu)
-
       TVector3 SM2center(0, 0, 1825);
       const TVector3 SM2field = PaSetup::Ref().MagField(SM2center);
       Q_beam = SM2field(1) < 0 ? 1 : -1;
@@ -625,7 +637,6 @@ void UserEvent970(PaEvent & e) { // begin event loop
 /*       float EC0Low_thr = 0.5; // ECAL thresholds for visible pi0 identification (anything below this is noise)
       float EC1Low_thr = 0.63;  */
 
-      int clusterCount = 0;
       for (int iclus = 0; iclus < e.NCaloClus(); iclus++) { // Begin loop over clusters 
           eventFlags.setFlagByName("clAll_flag", true);
           const PaCaloClus & cl = e.vCaloClus(iclus);
@@ -641,34 +652,17 @@ void UserEvent970(PaEvent & e) { // begin event loop
           if ((icalo != ecal0id) && (icalo != ecal1id) && (icalo != ecal2id)) continue;
 
           float E = cl.E();
-          if (icalo == ecal0id) {
-              if (E >= EC0_thr) {
-                cl_id.push_back(iclus);
-                clusterCount++;
-              } else {
-                pi0_cl_id.push_back(iclus);
-              }
-          }
-          else if (icalo == ecal1id) {
-              if (E >= EC1_thr) {
-                cl_id.push_back(iclus);
-                clusterCount++;
-              } else {
-                pi0_cl_id.push_back(iclus);
-              }
-          }
-          else if (icalo == ecal2id) {
-              if (E >= EC2_thr) {
-                cl_id.push_back(iclus);
-                clusterCount++;
-              } else {
-                pi0_cl_id.push_back(iclus);
-              }
+          if ((icalo == ecal0id && E >= EC0_thr) ||
+              (icalo == ecal1id && E >= EC1_thr) ||
+              (icalo == ecal2id && E >= EC2_thr)) {
+            cl_id.push_back(iclus);
+          } else {
+            pi0_cl_id.push_back(iclus);
           }
 
       } // End loop over clusters 
 
-      if (clusterCount != 0) {
+      if (cl_id.size() != 0) {
         eventFlags.setFlagByName("nCls_flag", true);
       }
 
@@ -677,19 +671,12 @@ void UserEvent970(PaEvent & e) { // begin event loop
       }
 
       // ! NOW CHECK THAT THERE IS ONLY ONE NEUTRAL CLUSTER !
-      if (clusterCount != 1) continue; // skip event if there is more than one exclusive cluster
+      if (cl_id.size() != 1) continue; // skip event if there is more than one exclusive cluster
       eventFlags.setFlagByName("singleCl_flag", true);
 
-     // Calculate TL vector for single high energy photon
-      if (clusterCount != 0) { // Ensure there is at least one cluster
-        const auto& cluster = e.vCaloClus(cl_id[0]); // Directly access the first (and only) cluster
-        double phdz  = cluster.Z() - v.Z();
-        double phdy  = cluster.Y() - v.Y();
-        double phdx  = cluster.X() - v.X();
-        double phL   = TMath::Sqrt(phdx * phdx + phdy * phdy + phdz * phdz);
-        double cl_E  = cluster.E();
-        gamma_TL.SetPxPyPzE(cl_E * phdx / phL, cl_E * phdy / phL, cl_E * phdz / phL, cl_E);
-      }
+      // Calculate TLorentz vectors for single high energy photon
+      buildClusterVecs(e, v, cl_id[0], gamma_TL, cluster_TL);
+      excl_calo = e.vCaloClus(cl_id[0]).iCalorim(); // get the ECal ID for the exclusive cluster
 
       //*******************************************
       // Store info about scattered proton candidates (check CAMERA)
@@ -705,6 +692,7 @@ void UserEvent970(PaEvent & e) { // begin event loop
       double phi_miss = p_miss_TL.Phi();
 
       for (auto proton: proton_candidates) { // Begin loop over proton candidates
+        eventFlags.setFlagByName("protonAll_flag", true); 
         bool DeltaPtPassed  = false; 
         bool DeltaPhiPassed = false; 
         bool DeltaZPassed   = false; 
@@ -720,8 +708,8 @@ void UserEvent970(PaEvent & e) { // begin event loop
         p_camera_TL = proton.p4; 
         if (p_camera_TL.Mag() == 0) continue; // ignore events where there is no TL vector
 
-        t       = (targ_TL - p_camera_TL) * (targ_TL - p_camera_TL); 
-        E_miss  = nu - gamma_TL.E() + t/(2 * M_p); // Missing energy (assuming proton)
+        t = (targ_TL - p_camera_TL) * (targ_TL - p_camera_TL); 
+        //double E_miss  = nu - gamma_TL.E() + t/(2 * M_p); // Missing energy (assuming proton)
 
         //*******************************************
         // Check that all combintations of the vertex, photon and proton satisfy exclusivity conditions 
@@ -731,10 +719,10 @@ void UserEvent970(PaEvent & e) { // begin event loop
         double phi_camera = p_camera_TL.Phi();
         delta_phi = phi_camera - phi_miss; // azimuthal angle
 
-        TVector3 posRingA = proton.Ahit.vec;
-			  TVector3 posRingB = proton.Bhit.vec;
-        double Z_inter = cam_inst->GetZA(R_vtx, posRingA, posRingB, phi_camera);
-        delta_Z = posRingA.Z() - Z_inter; // z position of the hits in the inner CAMERA ring
+        posRingA_vec = proton.Ahit.vec;
+			  posRingB_vec = proton.Bhit.vec;
+        double Z_inter = cam_inst->GetZA(R_vtx, posRingA_vec, posRingB_vec, phi_camera);
+        delta_Z = posRingA_vec.Z() - Z_inter; // z position of the hits in the inner CAMERA ring
 
         M2x = (p_miss_TL - p_camera_TL) * (p_miss_TL - p_camera_TL);
 
@@ -793,14 +781,15 @@ void UserEvent970(PaEvent & e) { // begin event loop
         //*******************************************
         // Perform the kinematic fit for current combination and save results 
         static Fitter* FitInterface = &(Fitter::GetInstance());
-        FitInterface->Init(R_vtx, beam_track, outMu_track, p_camera_TL, posRingA, posRingB); 
+        FitInterface->Init(R_vtx, beam_track, outMu_track, p_camera_TL, posRingA_vec, posRingB_vec); 
         FitInterface->Add_Photon(e.vCaloClus(cl_id[0]));
         FitInterface->SetupFit();
         FitInterface->DoFit(0, 1000);
 
         pVtxFit_vec     = *(FitInterface->GetVertex()->getCurr3Vec());
         posRingAFit_vec = *(FitInterface->GetHitA()->getCurr3Vec());
-        posRingBFit_vec = *(FitInterface->GetHitB()->getCurr3Vec());
+        posRingBFit_vec = *(FitInterface->GetHitB()->getCurr3Vec()); 
+        clusterFit_vec  = *(FitInterface->GetOutPhotons()[0]->getCurr3Vec());
 
         inMuFit_TL   = *(FitInterface->GetMuonIn()->getCurr4Vec());
         outMuFit_TL  = *(FitInterface->GetMuonOut()->getCurr4Vec());
@@ -808,14 +797,14 @@ void UserEvent970(PaEvent & e) { // begin event loop
         targetFit_TL = *(FitInterface->GetProtonTarget()->getCurr4Vec());
         gammaFit_TL  = *(FitInterface->GetOutPhotons()[0]->getCurr4Vec());
 
-        inMu_sigmaX = TMath::Sqrt((*(FitInterface->GetMuonIn()->getCovMatrixDeltaY()))(0, 0));
-        inMu_sigmaY = TMath::Sqrt((*(FitInterface->GetMuonIn()->getCovMatrixDeltaY()))(1, 1));
+        inMu_sigmaX  = TMath::Sqrt((*(FitInterface->GetMuonIn()->getCovMatrixDeltaY()))(0, 0));
+        inMu_sigmaY  = TMath::Sqrt((*(FitInterface->GetMuonIn()->getCovMatrixDeltaY()))(1, 1));
         inMu_sigmaPx = TMath::Sqrt((*(FitInterface->GetMuonIn()->getCovMatrixDeltaY()))(2, 2));
         inMu_sigmaPy = TMath::Sqrt((*(FitInterface->GetMuonIn()->getCovMatrixDeltaY()))(3, 3));
         inMu_sigmaPz = TMath::Sqrt((*(FitInterface->GetMuonIn()->getCovMatrixDeltaY()))(4, 4));
 
-        outMu_sigmaX = TMath::Sqrt((*(FitInterface->GetMuonOut()->getCovMatrixDeltaY()))(0, 0));
-        outMu_sigmaY = TMath::Sqrt((*(FitInterface->GetMuonOut()->getCovMatrixDeltaY()))(1, 1));
+        outMu_sigmaX  = TMath::Sqrt((*(FitInterface->GetMuonOut()->getCovMatrixDeltaY()))(0, 0));
+        outMu_sigmaY  = TMath::Sqrt((*(FitInterface->GetMuonOut()->getCovMatrixDeltaY()))(1, 1));
         outMu_sigmaPx = TMath::Sqrt((*(FitInterface->GetMuonOut()->getCovMatrixDeltaY()))(2, 2));
         outMu_sigmaPy = TMath::Sqrt((*(FitInterface->GetMuonOut()->getCovMatrixDeltaY()))(3, 3));
         outMu_sigmaPz = TMath::Sqrt((*(FitInterface->GetMuonOut()->getCovMatrixDeltaY()))(4, 4));
@@ -824,17 +813,17 @@ void UserEvent970(PaEvent & e) { // begin event loop
         gamma_sigmaY = TMath::Sqrt((*(FitInterface->GetOutPhotons()[0]->getCovMatrixDeltaY()))(1, 1));
         gamma_sigmaE = TMath::Sqrt((*(FitInterface->GetOutPhotons()[0]->getCovMatrixDeltaY()))(2, 2));
 
-        proton_sigmaP = TMath::Sqrt((*(FitInterface->GetProtonOut()->getCovMatrixDeltaY()))(0, 0));
+        proton_sigmaP     = TMath::Sqrt((*(FitInterface->GetProtonOut()->getCovMatrixDeltaY()))(0, 0));
         proton_sigmaTheta = TMath::Sqrt((*(FitInterface->GetProtonOut()->getCovMatrixDeltaY()))(1, 1));
-        proton_sigmaPhi = TMath::Sqrt((*(FitInterface->GetProtonOut()->getCovMatrixDeltaY()))(2, 2));
+        proton_sigmaPhi   = TMath::Sqrt((*(FitInterface->GetProtonOut()->getCovMatrixDeltaY()))(2, 2));
 
-        ringA_sigmaR = TMath::Sqrt((*(FitInterface->GetHitA()->getCovMatrixDeltaY()))(0, 0));
+        ringA_sigmaR   = TMath::Sqrt((*(FitInterface->GetHitA()->getCovMatrixDeltaY()))(0, 0));
         ringA_sigmaPhi = TMath::Sqrt((*(FitInterface->GetHitA()->getCovMatrixDeltaY()))(1, 1));
-        ringA_sigmaZ = TMath::Sqrt((*(FitInterface->GetHitA()->getCovMatrixDeltaY()))(2, 2));
+        ringA_sigmaZ   = TMath::Sqrt((*(FitInterface->GetHitA()->getCovMatrixDeltaY()))(2, 2));
 
-        ringB_sigmaR = TMath::Sqrt((*(FitInterface->GetHitA()->getCovMatrixDeltaY()))(0, 0));
+        ringB_sigmaR   = TMath::Sqrt((*(FitInterface->GetHitA()->getCovMatrixDeltaY()))(0, 0));
         ringB_sigmaPhi = TMath::Sqrt((*(FitInterface->GetHitA()->getCovMatrixDeltaY()))(1, 1));
-        ringB_sigmaZ = TMath::Sqrt((*(FitInterface->GetHitA()->getCovMatrixDeltaY()))(2, 2));
+        ringB_sigmaZ   = TMath::Sqrt((*(FitInterface->GetHitA()->getCovMatrixDeltaY()))(2, 2));
          
         fit_conv = FitInterface->GetFitOutput(chi2_fit, ndf_fit);  
 
@@ -856,13 +845,17 @@ void UserEvent970(PaEvent & e) { // begin event loop
           y_cut = true; 
           eventFlags.setFlagByName("yFit_flag", true);
         }
-        //if ((t_fit < -0.08 && t_fit > -0.64) || std::isnan(t_fit)) {
-        if (t_fit >= -0.08 || t_fit <= -0.64) {  
+        if ((t_fit < -0.08 && t_fit > -0.64) || std::isnan(t_fit)) {
+          t_cut = true;
+          eventFlags.setFlagByName("tFit_flag", true);
+          std::cout << std::endl << "DEBUG:: " << Evt << "," << t_fit << std::endl;  
+        }
+/*         if (t_fit >= -0.08 || t_fit <= -0.64) {  
           t_cut = false; 
         } else {
           t_cut = true; 
           eventFlags.setFlagByName("tFit_flag", true);
-        }
+        } */
         if ((nu_fit > 10 && nu_fit < 144) || std::isnan(nu_fit)) { 
           nu_cut = true; 
           eventFlags.setFlagByName("nuFit_flag", true);
@@ -875,42 +868,25 @@ void UserEvent970(PaEvent & e) { // begin event loop
 
         if (protonPassCount >= 4) { // Begin loop over candidats to save 
           eventFlags.setFlagByName("nExclCombo_flag", true);
-          excl_calo = e.vCaloClus(cl_id[0]).iCalorim(); // get the ECal ID for the exclusive cluster if its being saved 
           save_evt = true;
-          if (pi0_cl_id.size() != 0) {
+          if (!pi0_cl_id.empty()) { 
             for (auto iLow = std::size_t{0}; iLow < pi0_cl_id.size(); ++iLow) { // Begin loop over low-energy clusters 
-              //std::cout << Evt << ", filled tree " << (iLow + 1) << " times" << std::endl;
               eventFlags.setFlagByName("nExclComboPi0_flag", true);
               const auto& cl_LowE = e.vCaloClus(pi0_cl_id[iLow]);
               low_calo = cl_LowE.iCalorim();
 
-              // Build low-energy photon TLorentzVector
-              double phdz = cl_LowE.Z() - v.Z();
-              double phdy = cl_LowE.Y() - v.Y();
-              double phdx = cl_LowE.X() - v.X();
-              double phL  = TMath::Sqrt(phdx * phdx + phdy * phdy + phdz * phdz);
-              double cl_E = cl_LowE.E();
-
-              gammaLow_TL.SetPxPyPzE(cl_E * phdx / phL, cl_E * phdy / phL, cl_E * phdz / phL, cl_E);
-
-              // Combine to form a pi0 candidate
-              TLorentzVector pi0Cand_TL = gamma_TL + gammaLow_TL;
-              M_pi0 = pi0Cand_TL.M(); 
-              E_gammaLow = gammaLow_TL.E(); 
+              // Build low-energy photon TLorentzVectors using function
+              buildClusterVecs(e, v, pi0_cl_id[iLow], gammaLow_TL, clusterLow_TL);
 
               if (e.IsMC()) tree_MC->Fill();
               else tree->Fill();
             }
           } else {
-            //std::cout << Evt << ", filled tree once" << std::endl;
-            M_pi0 = -999;
-            E_gammaLow = -999;
             low_calo = -999;
-            excl_calo = e.vCaloClus(cl_id[0]).iCalorim();
 
             if (e.IsMC()) tree_MC->Fill();
             else tree->Fill();
-          } // End loop over low-energy clusters 
+          } // End loop over low-energy clusters
 
         } // End loop over candidats to save
 

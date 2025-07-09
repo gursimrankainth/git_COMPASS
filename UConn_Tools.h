@@ -87,9 +87,11 @@ bool outMuCheck(const PaEvent &e, const PaVertex &v, int vertexIndex, int Run, c
 				PaHodoHelper* HodoHelper, bool trig_flag, bool TiS_flag, const OutMuParams &params,
 				PaParticle &outMu, PaTrack &outMu_track, PaTPar &Par_outMu, EventFlags &flags);
 
-bool exclLepto (const PaEvent &e, bool leptoMC);  
+bool exclLepto(const PaEvent &e);    
 
 double phiRV(TLorentzVector inMu_TL, TLorentzVector outMu_TL, TLorentzVector proton_TL, TLorentzVector gamma_TL, bool eIsMC = false);
+
+void buildClusterVecs(const PaEvent &e, const PaVertex &v, int cl_id, TLorentzVector &gamma_TL, TLorentzVector &cluster_TL); 
 
 // *************************  RHO0 FUNCTIONS FOR PHAST EVENT SELECTION  ***************************
 bool crossCheck(const PaEvent &e, const PaVertex & v,int iv, int Run,const BeamFluxParams &params, 
