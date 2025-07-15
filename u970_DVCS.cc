@@ -43,8 +43,10 @@ EventFlags eventFlags(EventFlags::DVCS); // Create an instance of flags and coun
 
 // Global user selection flags 
 bool verbose_mode = false; // Create an instance of verbose_mode
-// this is a good example of what can be an environmental variable 
-bool leptoMC      = false; // Set to true for LEPTO MC to remove events with exclusive event topology 
+
+bool real_data = true;  // Set to true for real data 
+bool leptoMC   = false; // Set to true for LEPTO to remove events with exclusive photoproduction event topology 
+bool pi0_selec = false; // Set true for pi0 selection for HEPGEN Pi0 and LEPTO Pi0 
 
 //*****************************************************************************
 void UserEvent970(PaEvent & e) { // begin event loop
@@ -85,6 +87,7 @@ void UserEvent970(PaEvent & e) { // begin event loop
     static int    Nprim;        // Number of tracks in primary vertex (-1 in fot found)
     static int    Q_beam;       // Charge of the beam 
     static int    trig_mask;
+    static int    multiplicity; // Count how many candidates there are per event 
 
     static TVector3 pVtx_vec;     // position vector for the primary vertex (X, Y, Z)
     static TVector3 posRingA_vec; // hit position of the proton in CAMERA ring A
@@ -99,7 +102,7 @@ void UserEvent970(PaEvent & e) { // begin event loop
     static TLorentzVector gammaLow_TL;           // energy-momentum four vector of the low energy photon (used to find pi0)
     static TLorentzVector clusterLow_TL;         // vector used to store the position and energy information of the low-energy cluster
 
-    static int low_calo;    // calorimeter ID for low energy cluster used for pi0 reconstruction 
+    static int low_calo = -999;    // calorimeter ID for low energy cluster used for pi0 reconstruction 
     static int excl_calo;   // calorimeter ID for exclusive photon cluster  
 
     static double y;   // fractional energy loss of the incoming lepton 
@@ -206,191 +209,195 @@ void UserEvent970(PaEvent & e) { // begin event loop
         // Ntuple definition 
         //
         //*******************************************
-        tree = new TTree("USR970","User 970 DVCS NTuple - Real Data"); // name (has to be unique) and title of the Ntuple
-        // Basic event information
-        tree->Branch("Run", &Run, "Run/I");
-        tree->Branch("Evt", &Evt, "Evt/l");
-        tree->Branch("Chi2", &Chi2, "Chi2/F");
-        tree->Branch("Spill", &Spill, "Spill/I");
-        tree->Branch("Q_beam", &Q_beam, "Q_beam/I");
-        tree->Branch("TiS_flag", &TiS_flag, "TiS_flag/O");
-        // Trigger information
-        tree->Branch("trig_MT", &trig_MT, "trig_MT/O");
-        tree->Branch("trig_LT", &trig_LT, "trig_LT/O");
-        tree->Branch("trig_OT", &trig_OT, "trig_OT/O");
-        tree->Branch("trig_LAST", &trig_LAST, "trig_LAST/O");
-        // Particle/vertex vectors 
-        tree->Branch("inMu_TL", &inMu_TL);
-        tree->Branch("outMu_TL", &outMu_TL);
-        tree->Branch("gamma_TL", &gamma_TL);
-        tree->Branch("cluster_TL", &cluster_TL);
-        tree->Branch("p_camera_TL", &p_camera_TL);
-        tree->Branch("gammaLow_TL", &gammaLow_TL);
-        tree->Branch("clusterLow_TL", &clusterLow_TL);
-        tree->Branch("pVtx_vec", &pVtx_vec); 
-        tree->Branch("posRingA_vec", &posRingA_vec);
-        tree->Branch("posRingB_vec", &posRingB_vec);
-        // Kinematic variables 
-        tree->Branch("y", &y, "y/D");
-        tree->Branch("t", &t, "t/D");
-        tree->Branch("nu", &nu, "nu/D");
-        tree->Branch("Q2", &Q2, "Q2/D");
-        tree->Branch("W2", &W2, "W2/D");
-        tree->Branch("xbj", &xbj, "xbj/D");
-        // Invariant mass of visible pi0
-        tree->Branch("low_calo", &low_calo, "low_calo/I");
-        tree->Branch("excl_calo", &excl_calo, "excl_calo/I");
-        // Exclusivity variables      
-        tree->Branch("M2x", &M2x, "M2x/D");
-        tree->Branch("delta_Z", &delta_Z, "delta_Z/D");
-        tree->Branch("delta_pt", &delta_pt, "delta_pt/D");
-        tree->Branch("delta_phi", &delta_phi, "delta_phi/D");
-        // Kinematic fit vectors 
-        tree->Branch("inMuFit_TL", &inMuFit_TL);
-        tree->Branch("outMuFit_TL", &outMuFit_TL);
-        tree->Branch("gammaFit_TL", &gammaFit_TL);
-        tree->Branch("protonFit_TL", &protonFit_TL);
-        tree->Branch("pVtxFit_vec", &pVtxFit_vec);
-        tree->Branch("clusterFit_vec", &clusterFit_vec);
-        tree->Branch("posRingAFit_vec", &posRingAFit_vec);
-        tree->Branch("posRingBFit_vec", &posRingBFit_vec);
-        // Kinematic fit 
-        tree->Branch("y_fit", &y_fit, "y_fit/D");
-        tree->Branch("t_fit", &t_fit, "t_fit/D");
-        tree->Branch("nu_fit", &nu_fit, "nu_fit/D");
-        tree->Branch("Q2_fit", &Q2_fit, "Q2_fit/D");
-        tree->Branch("ndf_fit", &ndf_fit, "ndf_fit/I");
-        tree->Branch("chi2_fit", &chi2_fit, "chi2_fit/D");
-        tree->Branch("fit_conv", &fit_conv, "fit_conv/O");
-        tree->Branch("inMu_sigmaX", &inMu_sigmaX, "inMu_sigmaX/D");
-        tree->Branch("inMu_sigmaY", &inMu_sigmaY, "inMu_sigmaY/D");
-        tree->Branch("inMu_sigmaPx", &inMu_sigmaPx, "inMu_sigmaPx/D");
-        tree->Branch("inMu_sigmaPy", &inMu_sigmaPy, "inMu_sigmaPy/D");
-        tree->Branch("inMu_sigmaPz", &inMu_sigmaPz, "inMu_sigmaPz/D");
-        tree->Branch("outMu_sigmaX", &outMu_sigmaX, "outMu_sigmaX/D");
-        tree->Branch("outMu_sigmaY", &outMu_sigmaY, "outMu_sigmaY/D");
-        tree->Branch("outMu_sigmaPx", &outMu_sigmaPx, "outMu_sigmaPx/D");
-        tree->Branch("outMu_sigmaPy", &outMu_sigmaPy, "outMu_sigmaPy/D");
-        tree->Branch("outMu_sigmaPz", &outMu_sigmaPz, "outMu_sigmaPz/D");
-        tree->Branch("gamma_sigmaX", &gamma_sigmaX, "gamma_sigmaX/D");
-        tree->Branch("gamma_sigmaY", &gamma_sigmaY, "gamma_sigmaY/D");
-        tree->Branch("gamma_sigmaE", &gamma_sigmaE, "gamma_sigmaE/D");
-        tree->Branch("proton_sigmaP", &proton_sigmaP, "proton_sigmaP/D");
-        tree->Branch("proton_sigmaPhi", &proton_sigmaPhi, "proton_sigmaPhi/D");
-        tree->Branch("proton_sigmaTheta", &proton_sigmaTheta, "proton_sigmaTheta/D");
-        tree->Branch("ringA_sigmaR", &ringA_sigmaR, "ringA_sigmaR/D");
-        tree->Branch("ringA_sigmaZ", &ringA_sigmaZ, "ringA_sigmaZ/D");
-        tree->Branch("ringA_sigmaPhi", &ringA_sigmaPhi, "ringA_sigmaPhi/D");
-        tree->Branch("ringB_sigmaR", &ringB_sigmaR, "ringB_sigmaR/D");
-        tree->Branch("ringB_sigmaZ", &ringB_sigmaZ, "ringB_sigmaZ/D");
-        tree->Branch("ringB_sigmaPhi", &ringB_sigmaPhi, "ringB_sigmaPhi/D");
+        if (real_data) {
+          tree = new TTree("USR970","User 970 DVCS NTuple - Real Data"); // name (has to be unique) and title of the Ntuple
+          // Basic event information
+          tree->Branch("Run", &Run, "Run/I");
+          tree->Branch("Evt", &Evt, "Evt/l");
+          tree->Branch("Chi2", &Chi2, "Chi2/F");
+          tree->Branch("Spill", &Spill, "Spill/I");
+          tree->Branch("Q_beam", &Q_beam, "Q_beam/I");
+          tree->Branch("TiS_flag", &TiS_flag, "TiS_flag/O");
+          tree->Branch("multiplicity", &multiplicity, "multiplicity/I");
+          // Trigger information
+          tree->Branch("trig_MT", &trig_MT, "trig_MT/O");
+          tree->Branch("trig_LT", &trig_LT, "trig_LT/O");
+          tree->Branch("trig_OT", &trig_OT, "trig_OT/O");
+          tree->Branch("trig_LAST", &trig_LAST, "trig_LAST/O");
+          // Particle/vertex vectors 
+          tree->Branch("inMu_TL", &inMu_TL);
+          tree->Branch("outMu_TL", &outMu_TL);
+          tree->Branch("gamma_TL", &gamma_TL);
+          tree->Branch("cluster_TL", &cluster_TL);
+          tree->Branch("p_camera_TL", &p_camera_TL);
+          tree->Branch("gammaLow_TL", &gammaLow_TL);
+          tree->Branch("clusterLow_TL", &clusterLow_TL);
+          tree->Branch("pVtx_vec", &pVtx_vec); 
+          tree->Branch("posRingA_vec", &posRingA_vec);
+          tree->Branch("posRingB_vec", &posRingB_vec);
+          // Kinematic variables 
+          tree->Branch("y", &y, "y/D");
+          tree->Branch("t", &t, "t/D");
+          tree->Branch("nu", &nu, "nu/D");
+          tree->Branch("Q2", &Q2, "Q2/D");
+          tree->Branch("W2", &W2, "W2/D");
+          tree->Branch("xbj", &xbj, "xbj/D");
+          // Invariant mass of visible pi0
+          tree->Branch("low_calo", &low_calo, "low_calo/I");
+          tree->Branch("excl_calo", &excl_calo, "excl_calo/I");
+          // Exclusivity variables      
+          tree->Branch("M2x", &M2x, "M2x/D");
+          tree->Branch("delta_Z", &delta_Z, "delta_Z/D");
+          tree->Branch("delta_pt", &delta_pt, "delta_pt/D");
+          tree->Branch("delta_phi", &delta_phi, "delta_phi/D");
+          // Kinematic fit vectors 
+          tree->Branch("inMuFit_TL", &inMuFit_TL);
+          tree->Branch("outMuFit_TL", &outMuFit_TL);
+          tree->Branch("gammaFit_TL", &gammaFit_TL);
+          tree->Branch("protonFit_TL", &protonFit_TL);
+          tree->Branch("pVtxFit_vec", &pVtxFit_vec);
+          tree->Branch("clusterFit_vec", &clusterFit_vec);
+          tree->Branch("posRingAFit_vec", &posRingAFit_vec);
+          tree->Branch("posRingBFit_vec", &posRingBFit_vec);
+          // Kinematic fit 
+          tree->Branch("y_fit", &y_fit, "y_fit/D");
+          tree->Branch("t_fit", &t_fit, "t_fit/D");
+          tree->Branch("nu_fit", &nu_fit, "nu_fit/D");
+          tree->Branch("Q2_fit", &Q2_fit, "Q2_fit/D");
+          tree->Branch("ndf_fit", &ndf_fit, "ndf_fit/I");
+          tree->Branch("chi2_fit", &chi2_fit, "chi2_fit/D");
+          tree->Branch("fit_conv", &fit_conv, "fit_conv/O");
+          tree->Branch("inMu_sigmaX", &inMu_sigmaX, "inMu_sigmaX/D");
+          tree->Branch("inMu_sigmaY", &inMu_sigmaY, "inMu_sigmaY/D");
+          tree->Branch("inMu_sigmaPx", &inMu_sigmaPx, "inMu_sigmaPx/D");
+          tree->Branch("inMu_sigmaPy", &inMu_sigmaPy, "inMu_sigmaPy/D");
+          tree->Branch("inMu_sigmaPz", &inMu_sigmaPz, "inMu_sigmaPz/D");
+          tree->Branch("outMu_sigmaX", &outMu_sigmaX, "outMu_sigmaX/D");
+          tree->Branch("outMu_sigmaY", &outMu_sigmaY, "outMu_sigmaY/D");
+          tree->Branch("outMu_sigmaPx", &outMu_sigmaPx, "outMu_sigmaPx/D");
+          tree->Branch("outMu_sigmaPy", &outMu_sigmaPy, "outMu_sigmaPy/D");
+          tree->Branch("outMu_sigmaPz", &outMu_sigmaPz, "outMu_sigmaPz/D");
+          tree->Branch("gamma_sigmaX", &gamma_sigmaX, "gamma_sigmaX/D");
+          tree->Branch("gamma_sigmaY", &gamma_sigmaY, "gamma_sigmaY/D");
+          tree->Branch("gamma_sigmaE", &gamma_sigmaE, "gamma_sigmaE/D");
+          tree->Branch("proton_sigmaP", &proton_sigmaP, "proton_sigmaP/D");
+          tree->Branch("proton_sigmaPhi", &proton_sigmaPhi, "proton_sigmaPhi/D");
+          tree->Branch("proton_sigmaTheta", &proton_sigmaTheta, "proton_sigmaTheta/D");
+          tree->Branch("ringA_sigmaR", &ringA_sigmaR, "ringA_sigmaR/D");
+          tree->Branch("ringA_sigmaZ", &ringA_sigmaZ, "ringA_sigmaZ/D");
+          tree->Branch("ringA_sigmaPhi", &ringA_sigmaPhi, "ringA_sigmaPhi/D");
+          tree->Branch("ringB_sigmaR", &ringB_sigmaR, "ringB_sigmaR/D");
+          tree->Branch("ringB_sigmaZ", &ringB_sigmaZ, "ringB_sigmaZ/D");
+          tree->Branch("ringB_sigmaPhi", &ringB_sigmaPhi, "ringB_sigmaPhi/D");
+        } else {
+          //*******************************************
+          tree_MC = new TTree("USR970_MC","User 970 DVCS NTuple - MC Data"); // name (has to be unique) and title of the Ntuple
+          // Basic event information
+          tree_MC->Branch("Run", &Run, "Run/I");
+          tree_MC->Branch("Evt", &Evt, "Evt/l");
+          tree_MC->Branch("Chi2", &Chi2, "Chi2/F");
+          tree_MC->Branch("Spill", &Spill, "Spill/I");
+          tree_MC->Branch("Q_beam", &Q_beam, "Q_beam/I");
+          tree_MC->Branch("multiplicity", &multiplicity, "multiplicity/I");
+          // Trigger information
+          tree_MC->Branch("trig_MT", &trig_MT, "trig_MT/O");
+          tree_MC->Branch("trig_LT", &trig_LT, "trig_LT/O");
+          tree_MC->Branch("trig_OT", &trig_OT, "trig_OT/O");
+          tree_MC->Branch("trig_LAST", &trig_LAST, "trig_LAST/O");
+          // Particle/vertex vectors 
+          tree_MC->Branch("inMu_TL", &inMu_TL);
+          tree_MC->Branch("outMu_TL", &outMu_TL);
+          tree_MC->Branch("gamma_TL", &gamma_TL);
+          tree_MC->Branch("cluster_TL", &cluster_TL);
+          tree_MC->Branch("p_camera_TL", &p_camera_TL);
+          tree_MC->Branch("gammaLow_TL", &gammaLow_TL);
+          tree_MC->Branch("clusterLow_TL", &clusterLow_TL);
+          tree_MC->Branch("pVtx_vec", &pVtx_vec);
+          tree_MC->Branch("posRingA_vec", &posRingA_vec);
+          tree_MC->Branch("posRingB_vec", &posRingB_vec);
+          // Kinematic variables 
+          tree_MC->Branch("y", &y, "y/D");
+          tree_MC->Branch("t", &t, "t/D");
+          tree_MC->Branch("nu", &nu, "nu/D");
+          tree_MC->Branch("Q2", &Q2, "Q2/D");
+          tree_MC->Branch("W2", &W2, "W2/D");
+          tree_MC->Branch("xbj", &xbj, "xbj/D");
+          // Invariant mass of visible pi0
+          tree_MC->Branch("low_calo", &low_calo, "low_calo/I");
+          tree_MC->Branch("excl_calo", &excl_calo, "excl_calo/I");
+          // Exclusivity variables      
+          tree_MC->Branch("M2x", &M2x, "M2x/D");
+          tree_MC->Branch("delta_Z", &delta_Z, "delta_Z/D");
+          tree_MC->Branch("delta_pt", &delta_pt, "delta_pt/D");
+          tree_MC->Branch("delta_phi", &delta_phi, "delta_phi/D");
+          // Kinematic fit vectors 
+          tree_MC->Branch("inMuFit_TL", &inMuFit_TL);
+          tree_MC->Branch("outMuFit_TL", &outMuFit_TL);
+          tree_MC->Branch("gammaFit_TL", &gammaFit_TL);
+          tree_MC->Branch("protonFit_TL", &protonFit_TL);
+          tree_MC->Branch("pVtxFit_vec", &pVtxFit_vec);
+          tree_MC->Branch("clusterFit_vec", &clusterFit_vec);
+          tree_MC->Branch("posRingAFit_vec", &posRingAFit_vec);
+          tree_MC->Branch("posRingBFit_vec", &posRingBFit_vec);
+          // Kinematic fit
+          tree_MC->Branch("y_fit", &y_fit, "y_fit/D");
+          tree_MC->Branch("t_fit", &t_fit, "t_fit/D");
+          tree_MC->Branch("nu_fit", &nu_fit, "nu_fit/D");
+          tree_MC->Branch("Q2_fit", &Q2_fit, "Q2_fit/D");
+          tree_MC->Branch("ndf_fit", &ndf_fit, "ndf_fit/I");
+          tree_MC->Branch("chi2_fit", &chi2_fit, "chi2_fit/D");
+          tree_MC->Branch("fit_conv", &fit_conv, "fit_conv/O");
+          tree_MC->Branch("inMu_sigmaX", &inMu_sigmaX, "inMu_sigmaX/D");
+          tree_MC->Branch("inMu_sigmaY", &inMu_sigmaY, "inMu_sigmaY/D");
+          tree_MC->Branch("inMu_sigmaPx", &inMu_sigmaPx, "inMu_sigmaPx/D");
+          tree_MC->Branch("inMu_sigmaPy", &inMu_sigmaPy, "inMu_sigmaPy/D");
+          tree_MC->Branch("inMu_sigmaPz", &inMu_sigmaPz, "inMu_sigmaPz/D");
+          tree_MC->Branch("outMu_sigmaX", &outMu_sigmaX, "outMu_sigmaX/D");
+          tree_MC->Branch("outMu_sigmaY", &outMu_sigmaY, "outMu_sigmaY/D");
+          tree_MC->Branch("outMu_sigmaPx", &outMu_sigmaPx, "outMu_sigmaPx/D");
+          tree_MC->Branch("outMu_sigmaPy", &outMu_sigmaPy, "outMu_sigmaPy/D");
+          tree_MC->Branch("outMu_sigmaPz", &outMu_sigmaPz, "outMu_sigmaPz/D");
+          tree_MC->Branch("gamma_sigmaX", &gamma_sigmaX, "gamma_sigmaX/D");
+          tree_MC->Branch("gamma_sigmaY", &gamma_sigmaY, "gamma_sigmaY/D");
+          tree_MC->Branch("gamma_sigmaE", &gamma_sigmaE, "gamma_sigmaE/D");
+          tree_MC->Branch("proton_sigmaP", &proton_sigmaP, "proton_sigmaP/D");
+          tree_MC->Branch("proton_sigmaPhi", &proton_sigmaPhi, "proton_sigmaPhi/D");
+          tree_MC->Branch("proton_sigmaTheta", &proton_sigmaTheta, "proton_sigmaTheta/D");
+          tree_MC->Branch("ringA_sigmaR", &ringA_sigmaR, "ringA_sigmaR/D");
+          tree_MC->Branch("ringA_sigmaZ", &ringA_sigmaZ, "ringA_sigmaZ/D");
+          tree_MC->Branch("ringA_sigmaPhi", &ringA_sigmaPhi, "ringA_sigmaPhi/D");
+          tree_MC->Branch("ringB_sigmaR", &ringB_sigmaR, "ringB_sigmaR/D");
+          tree_MC->Branch("ringB_sigmaZ", &ringB_sigmaZ, "ringB_sigmaZ/D");
+          tree_MC->Branch("ringB_sigmaPhi", &ringB_sigmaPhi, "ringB_sigmaPhi/D");
 
-        //*******************************************
-        tree_MC = new TTree("USR970_MC","User 970 DVCS NTuple - MC Data"); // name (has to be unique) and title of the Ntuple
-        // Basic event information
-        tree_MC->Branch("Run", &Run, "Run/I");
-        tree_MC->Branch("Evt", &Evt, "Evt/l");
-        tree_MC->Branch("Chi2", &Chi2, "Chi2/F");
-        tree_MC->Branch("Spill", &Spill, "Spill/I");
-        tree_MC->Branch("Q_beam", &Q_beam, "Q_beam/I");
-        // Trigger information
-        tree_MC->Branch("trig_MT", &trig_MT, "trig_MT/O");
-        tree_MC->Branch("trig_LT", &trig_LT, "trig_LT/O");
-        tree_MC->Branch("trig_OT", &trig_OT, "trig_OT/O");
-        tree_MC->Branch("trig_LAST", &trig_LAST, "trig_LAST/O");
-        // Particle/vertex vectors 
-        tree_MC->Branch("inMu_TL", &inMu_TL);
-        tree_MC->Branch("outMu_TL", &outMu_TL);
-        tree_MC->Branch("gamma_TL", &gamma_TL);
-        tree_MC->Branch("cluster_TL", &cluster_TL);
-        tree_MC->Branch("p_camera_TL", &p_camera_TL);
-        tree_MC->Branch("gammaLow_TL", &gammaLow_TL);
-        tree_MC->Branch("clusterLow_TL", &clusterLow_TL);
-        tree_MC->Branch("pVtx_vec", &pVtx_vec);
-        tree_MC->Branch("posRingA_vec", &posRingA_vec);
-        tree_MC->Branch("posRingB_vec", &posRingB_vec);
-        // Kinematic variables 
-        tree_MC->Branch("y", &y, "y/D");
-        tree_MC->Branch("t", &t, "t/D");
-        tree_MC->Branch("nu", &nu, "nu/D");
-        tree_MC->Branch("Q2", &Q2, "Q2/D");
-        tree_MC->Branch("W2", &W2, "W2/D");
-        tree_MC->Branch("xbj", &xbj, "xbj/D");
-        // Invariant mass of visible pi0
-        tree_MC->Branch("low_calo", &low_calo, "low_calo/I");
-        tree_MC->Branch("excl_calo", &excl_calo, "excl_calo/I");
-        // Exclusivity variables      
-        tree_MC->Branch("M2x", &M2x, "M2x/D");
-        tree_MC->Branch("delta_Z", &delta_Z, "delta_Z/D");
-        tree_MC->Branch("delta_pt", &delta_pt, "delta_pt/D");
-        tree_MC->Branch("delta_phi", &delta_phi, "delta_phi/D");
-        // Kinematic fit vectors 
-        tree_MC->Branch("inMuFit_TL", &inMuFit_TL);
-        tree_MC->Branch("outMuFit_TL", &outMuFit_TL);
-        tree_MC->Branch("gammaFit_TL", &gammaFit_TL);
-        tree_MC->Branch("protonFit_TL", &protonFit_TL);
-        tree_MC->Branch("pVtxFit_vec", &pVtxFit_vec);
-        tree_MC->Branch("clusterFit_vec", &clusterFit_vec);
-        tree_MC->Branch("posRingAFit_vec", &posRingAFit_vec);
-        tree_MC->Branch("posRingBFit_vec", &posRingBFit_vec);
-        // Kinematic fit
-        tree_MC->Branch("y_fit", &y_fit, "y_fit/D");
-        tree_MC->Branch("t_fit", &t_fit, "t_fit/D");
-        tree_MC->Branch("nu_fit", &nu_fit, "nu_fit/D");
-        tree_MC->Branch("Q2_fit", &Q2_fit, "Q2_fit/D");
-        tree_MC->Branch("ndf_fit", &ndf_fit, "ndf_fit/I");
-        tree_MC->Branch("chi2_fit", &chi2_fit, "chi2_fit/D");
-        tree_MC->Branch("fit_conv", &fit_conv, "fit_conv/O");
-        tree_MC->Branch("inMu_sigmaX", &inMu_sigmaX, "inMu_sigmaX/D");
-        tree_MC->Branch("inMu_sigmaY", &inMu_sigmaY, "inMu_sigmaY/D");
-        tree_MC->Branch("inMu_sigmaPx", &inMu_sigmaPx, "inMu_sigmaPx/D");
-        tree_MC->Branch("inMu_sigmaPy", &inMu_sigmaPy, "inMu_sigmaPy/D");
-        tree_MC->Branch("inMu_sigmaPz", &inMu_sigmaPz, "inMu_sigmaPz/D");
-        tree_MC->Branch("outMu_sigmaX", &outMu_sigmaX, "outMu_sigmaX/D");
-        tree_MC->Branch("outMu_sigmaY", &outMu_sigmaY, "outMu_sigmaY/D");
-        tree_MC->Branch("outMu_sigmaPx", &outMu_sigmaPx, "outMu_sigmaPx/D");
-        tree_MC->Branch("outMu_sigmaPy", &outMu_sigmaPy, "outMu_sigmaPy/D");
-        tree_MC->Branch("outMu_sigmaPz", &outMu_sigmaPz, "outMu_sigmaPz/D");
-        tree_MC->Branch("gamma_sigmaX", &gamma_sigmaX, "gamma_sigmaX/D");
-        tree_MC->Branch("gamma_sigmaY", &gamma_sigmaY, "gamma_sigmaY/D");
-        tree_MC->Branch("gamma_sigmaE", &gamma_sigmaE, "gamma_sigmaE/D");
-        tree_MC->Branch("proton_sigmaP", &proton_sigmaP, "proton_sigmaP/D");
-        tree_MC->Branch("proton_sigmaPhi", &proton_sigmaPhi, "proton_sigmaPhi/D");
-        tree_MC->Branch("proton_sigmaTheta", &proton_sigmaTheta, "proton_sigmaTheta/D");
-        tree_MC->Branch("ringA_sigmaR", &ringA_sigmaR, "ringA_sigmaR/D");
-        tree_MC->Branch("ringA_sigmaZ", &ringA_sigmaZ, "ringA_sigmaZ/D");
-        tree_MC->Branch("ringA_sigmaPhi", &ringA_sigmaPhi, "ringA_sigmaPhi/D");
-        tree_MC->Branch("ringB_sigmaR", &ringB_sigmaR, "ringB_sigmaR/D");
-        tree_MC->Branch("ringB_sigmaZ", &ringB_sigmaZ, "ringB_sigmaZ/D");
-        tree_MC->Branch("ringB_sigmaPhi", &ringB_sigmaPhi, "ringB_sigmaPhi/D");
-
-        //*******************************************
-        tree_gen = new TTree("USR970_GEN","User 970 HEPGEN NTuple");
-        // Basic event information
-        tree_gen->Branch("Run", &Run, "Run/I");
-        tree_gen->Branch("Evt", &Evt, "Evt/l");
-        tree_gen->Branch("Spill", &Spill, "Spill/I");
-        tree_gen->Branch("Q_beam", &Q_beam, "Q_beam/I");
-        // Particle vectors 
-        tree_gen->Branch("inMu_gen_TL", &inMu_gen_TL);
-        tree_gen->Branch("outMu_gen_TL", &outMu_gen_TL);
-        tree_gen->Branch("gamma_gen_TL", &gamma_gen_TL);
-        tree_gen->Branch("proton_gen_TL", &proton_gen_TL);
-        // Kinematic variables 
-        tree_gen->Branch("y_gen", &y_gen, "y_gen/D");
-        tree_gen->Branch("t_gen", &t_gen, "t_gen/D");
-        tree_gen->Branch("Q2_gen", &Q2_gen, "Q2_gen/D");
-        tree_gen->Branch("nu_gen", &nu_gen, "nu_gen/D");
-        tree_gen->Branch("W2_gen", &W2_gen, "W2_gen/D");
-        tree_gen->Branch("xbj_gen", &xbj_gen, "xbj_gen/D");
-        tree_gen->Branch("phi_gg_gen", &phi_gg_gen, "phi_gg_gen/D");
-        // Weights 
-        tree_gen->Branch("phase_fac", &phase_fac, "phase_fac/D");
-        tree_gen->Branch("weight_BH", &weight_BH, "weight_BH/D");
-        tree_gen->Branch("weight_all", &weight_all, "weight_all/D");
-        tree_gen->Branch("weight_DVCS", &weight_DVCS, "weight_DVCS/D");
-        tree_gen->Branch("weight_PAMBH", &weight_PAMBH, "weight_PAMBH/D");
-        tree_gen->Branch("weight_Interference", &weight_Interference, "weight_Interference/D");
+          //*******************************************
+          tree_gen = new TTree("USR970_GEN","User 970 HEPGEN NTuple");
+          // Basic event information
+          tree_gen->Branch("Run", &Run, "Run/I");
+          tree_gen->Branch("Evt", &Evt, "Evt/l");
+          tree_gen->Branch("Spill", &Spill, "Spill/I");
+          tree_gen->Branch("Q_beam", &Q_beam, "Q_beam/I");
+          // Particle vectors 
+          tree_gen->Branch("inMu_gen_TL", &inMu_gen_TL);
+          tree_gen->Branch("outMu_gen_TL", &outMu_gen_TL);
+          tree_gen->Branch("gamma_gen_TL", &gamma_gen_TL);
+          tree_gen->Branch("proton_gen_TL", &proton_gen_TL);
+          // Kinematic variables 
+          tree_gen->Branch("y_gen", &y_gen, "y_gen/D");
+          tree_gen->Branch("t_gen", &t_gen, "t_gen/D");
+          tree_gen->Branch("Q2_gen", &Q2_gen, "Q2_gen/D");
+          tree_gen->Branch("nu_gen", &nu_gen, "nu_gen/D");
+          tree_gen->Branch("W2_gen", &W2_gen, "W2_gen/D");
+          tree_gen->Branch("xbj_gen", &xbj_gen, "xbj_gen/D");
+          tree_gen->Branch("phi_gg_gen", &phi_gg_gen, "phi_gg_gen/D");
+          // Weights 
+          tree_gen->Branch("phase_fac", &phase_fac, "phase_fac/D");
+          tree_gen->Branch("weight_BH", &weight_BH, "weight_BH/D");
+          tree_gen->Branch("weight_all", &weight_all, "weight_all/D");
+          tree_gen->Branch("weight_DVCS", &weight_DVCS, "weight_DVCS/D");
+          tree_gen->Branch("weight_PAMBH", &weight_PAMBH, "weight_PAMBH/D");
+          tree_gen->Branch("weight_Interference", &weight_Interference, "weight_Interference/D");
+        }
         
         first = false;
     } // end of histogram booking
@@ -466,6 +473,7 @@ void UserEvent970(PaEvent & e) { // begin event loop
     
     eventFlags.createFlag("nExclCombo_flag", "No. of events where at least one vertex, photon and proton combination satisfies 4/5 exclusivity cuts");
     eventFlags.createFlag("nExclComboPi0_flag", "No. of events with pi0 candidates which satisfy at least 4/5 exclsuvity cuts");
+    eventFlags.createFlag("nComboPi0_flag", "No. of events (pi0 MC) with pi0 candidates - no pi0 exclusivity cuts"); 
      
     eventFlags.resetFlags(); // Reset all event statistic counter flags to false
 
@@ -555,6 +563,7 @@ void UserEvent970(PaEvent & e) { // begin event loop
     eventFlags.setFlagByName("allEvts_flag", true); 
     
     // Loop over reconstructed vertices in the event - REAL and MC RECONSTRUCTED DATA 
+    multiplicity = 0; 
 		for (int iv = 0; iv < e.NVertex(); iv++) { // begin loop over vertices
 			//******************************************* 
 			// Store info about primary vertex (if found) 
@@ -580,7 +589,7 @@ void UserEvent970(PaEvent & e) { // begin event loop
 	 		bool inMu_flag = beamFluxCheck(e, v, iv, Run, beamParams, beam, beam_track, par_beam, eventFlags);
       if (!inMu_flag) continue; // ignore all events that dont satisfy the beam flux requirements
 
-      // TiS flag is used only to check DVCS statistics
+      // TiS flag is used only to check DVCS statistics -> cut is in postPhast script 
       if (TiS_flag) {  
         eventFlags.setFlagByName("timeInSpill_flag", true); 
       }  
@@ -687,211 +696,239 @@ void UserEvent970(PaEvent & e) { // begin event loop
       TVector3 R_vtx;
       R_vtx.SetXYZ(v.Pos(0),v.Pos(1),v.Pos(2));
 
-      int nCombs = 0;
-      TLorentzVector p_miss_TL = targ_TL + inMu_TL - outMu_TL - gamma_TL;
-      double pt_miss = p_miss_TL.Pt(); 
-      double phi_miss = p_miss_TL.Phi();
+      // For exclusive photoproduction selection - real data + HEPGEN BH
+      bool betaPassed = false; 
+      if (!pi0_selec) { 
+        TLorentzVector p_miss_TL = targ_TL + inMu_TL - outMu_TL - gamma_TL;
+        double pt_miss = p_miss_TL.Pt(); 
+        double phi_miss = p_miss_TL.Phi();
 
-      for (auto proton: proton_candidates) { // Begin loop over proton candidates
-        eventFlags.setFlagByName("protonAll_flag", true); 
-        bool DeltaPtPassed  = false; 
-        bool DeltaPhiPassed = false; 
-        bool DeltaZPassed   = false; 
-        bool DeltaM2xPassed = false; 
-        bool tPassed        = false; 
-        bool betaPassed     = false; 
+        for (auto proton: proton_candidates) { // Begin loop over proton candidates
+          eventFlags.setFlagByName("protonAll_flag", true); 
 
-        double beta = proton.beta;
-        if (beta >= 0.1 && beta <= 1) {betaPassed = true;}
-        if (!betaPassed) continue;
-        eventFlags.setFlagByName("proton_flag", true);
+          bool DeltaPtPassed  = false; 
+          bool DeltaPhiPassed = false; 
+          bool DeltaZPassed   = false; 
+          bool DeltaM2xPassed = false; 
+          bool tPassed        = false; 
 
-        p_camera_TL = proton.p4; 
-        if (p_camera_TL.Mag() == 0) continue; // ignore events where there is no TL vector
+          double beta = proton.beta;
+          if (beta >= 0.1 && beta <= 1) {betaPassed = true;}
+          if (!betaPassed) continue;
+          eventFlags.setFlagByName("proton_flag", true);
 
-        t = (targ_TL - p_camera_TL) * (targ_TL - p_camera_TL); 
-        //double E_miss  = nu - gamma_TL.E() + t/(2 * M_p); // Missing energy (assuming proton)
+          p_camera_TL = proton.p4; 
+          if (p_camera_TL.Mag() == 0) continue; // ignore events where there is no TL vector
 
-        //*******************************************
-        // Check that all combintations of the vertex, photon and proton satisfy exclusivity conditions 
-        // 4 exclusivity variables: detla_phi, delta_pt, delta_Z, M2x
-        double pt_camera = p_camera_TL.Pt(); 
-        delta_pt = pt_camera - pt_miss; // transverse momentum
-        double phi_camera = p_camera_TL.Phi();
-        delta_phi = phi_camera - phi_miss; // azimuthal angle
+          t = (targ_TL - p_camera_TL) * (targ_TL - p_camera_TL); 
 
-        posRingA_vec = proton.Ahit.vec;
-			  posRingB_vec = proton.Bhit.vec;
-        double Z_inter = cam_inst->GetZA(R_vtx, posRingA_vec, posRingB_vec, phi_camera);
-        delta_Z = posRingA_vec.Z() - Z_inter; // z position of the hits in the inner CAMERA ring
+          //*******************************************
+          // Check that all combintations of the vertex, photon and proton satisfy exclusivity conditions 
+          // 4 exclusivity variables: detla_phi, delta_pt, delta_Z, M2x
+          double pt_camera = p_camera_TL.Pt(); 
+          delta_pt = pt_camera - pt_miss; // transverse momentum
+          double phi_camera = p_camera_TL.Phi();
+          delta_phi = phi_camera - phi_miss; // azimuthal angle
 
-        M2x = (p_miss_TL - p_camera_TL) * (p_miss_TL - p_camera_TL);
+          posRingA_vec = proton.Ahit.vec;
+          posRingB_vec = proton.Bhit.vec;
+          double Z_inter = cam_inst->GetZA(R_vtx, posRingA_vec, posRingB_vec, phi_camera);
+          delta_Z = posRingA_vec.Z() - Z_inter; // z position of the hits in the inner CAMERA ring
 
-        int protonPassCount = 0;
-        if ((DeltaPtPassed  = std::fabs(delta_pt) <= 0.3)) protonPassCount++;
-        if ((DeltaZPassed   = std::fabs(delta_Z) <= 16)) protonPassCount++;
-        if ((DeltaM2xPassed = std::fabs(M2x) <= 0.3)) protonPassCount++;
-        if ((tPassed = (t < -0.08 && t > -0.64))) protonPassCount++;
+          M2x = (p_miss_TL - p_camera_TL) * (p_miss_TL - p_camera_TL);
 
-        if (delta_phi >= -0.4 && delta_phi <= 0.4) {
-            DeltaPhiPassed = true;
-            protonPassCount++;
-        } else if ((delta_phi + 2 * TMath::Pi()) >= -0.4 && (delta_phi + 2 * TMath::Pi()) <= 0.4) {
-            delta_phi += 2 * TMath::Pi();
-            DeltaPhiPassed = true;
-            protonPassCount++;
-        } else if ((delta_phi - 2 * TMath::Pi()) >= -0.4 && (delta_phi - 2 * TMath::Pi()) <= 0.4) {
-            delta_phi -= 2 * TMath::Pi();
-            DeltaPhiPassed = true;
-            protonPassCount++;
-        }
+          int protonPassCount = 0;
+          if ((DeltaPtPassed  = std::fabs(delta_pt) <= 0.3)) protonPassCount++;
+          if ((DeltaZPassed   = std::fabs(delta_Z) <= 16)) protonPassCount++;
+          if ((DeltaM2xPassed = std::fabs(M2x) <= 0.3)) protonPassCount++;
+          if ((tPassed = (t < -0.08 && t > -0.64))) protonPassCount++;
 
-        if (TiS_flag && (eventFlags.getFlag("passHodo_flag"))) {
-
-          if (Q2 >= 1 && Q2 <= 10) {
-            eventFlags.setFlagByName("Q2_DVCS_flag", true);
-
-            if (y >= 0.05 && y <= 0.9) {
-              eventFlags.setFlagByName("y_DVCS_flag", true);
-
-              if (DeltaPtPassed) {
-                eventFlags.setFlagByName("delta_pt_flag", true); 
-
-                if (DeltaPhiPassed) {
-                  eventFlags.setFlagByName("delta_phi_flag", true);
-
-                  if (DeltaZPassed) {
-                    eventFlags.setFlagByName("delta_Z_flag", true);
-
-                    if (DeltaM2xPassed) {
-                      eventFlags.setFlagByName("M2x_flag", true);
-                    }
-
-                  }
-
-                }
-
-              }
-
-            }
-
+          if (delta_phi >= -0.4 && delta_phi <= 0.4) {
+              DeltaPhiPassed = true;
+              protonPassCount++;
+          } else if ((delta_phi + 2 * TMath::Pi()) >= -0.4 && (delta_phi + 2 * TMath::Pi()) <= 0.4) {
+              delta_phi += 2 * TMath::Pi();
+              DeltaPhiPassed = true;
+              protonPassCount++;
+          } else if ((delta_phi - 2 * TMath::Pi()) >= -0.4 && (delta_phi - 2 * TMath::Pi()) <= 0.4) {
+              delta_phi -= 2 * TMath::Pi();
+              DeltaPhiPassed = true;
+              protonPassCount++;
           }
 
-        }
-
-        //*******************************************
-        // Perform the kinematic fit for current combination and save results 
-        static Fitter* FitInterface = &(Fitter::GetInstance());
-        FitInterface->Init(R_vtx, beam_track, outMu_track, p_camera_TL, posRingA_vec, posRingB_vec); 
-        FitInterface->Add_Photon(e.vCaloClus(cl_id[0]));
-        FitInterface->SetupFit();
-        FitInterface->DoFit(0, 1000);
-
-        pVtxFit_vec     = *(FitInterface->GetVertex()->getCurr3Vec());
-        posRingAFit_vec = *(FitInterface->GetHitA()->getCurr3Vec());
-        posRingBFit_vec = *(FitInterface->GetHitB()->getCurr3Vec()); 
-        clusterFit_vec  = *(FitInterface->GetOutPhotons()[0]->getCurr3Vec());
-
-        inMuFit_TL   = *(FitInterface->GetMuonIn()->getCurr4Vec());
-        outMuFit_TL  = *(FitInterface->GetMuonOut()->getCurr4Vec());
-        protonFit_TL = *(FitInterface->GetProtonOut()->getCurr4Vec());
-        targetFit_TL = *(FitInterface->GetProtonTarget()->getCurr4Vec());
-        gammaFit_TL  = *(FitInterface->GetOutPhotons()[0]->getCurr4Vec());
-
-        inMu_sigmaX  = TMath::Sqrt((*(FitInterface->GetMuonIn()->getCovMatrixDeltaY()))(0, 0));
-        inMu_sigmaY  = TMath::Sqrt((*(FitInterface->GetMuonIn()->getCovMatrixDeltaY()))(1, 1));
-        inMu_sigmaPx = TMath::Sqrt((*(FitInterface->GetMuonIn()->getCovMatrixDeltaY()))(2, 2));
-        inMu_sigmaPy = TMath::Sqrt((*(FitInterface->GetMuonIn()->getCovMatrixDeltaY()))(3, 3));
-        inMu_sigmaPz = TMath::Sqrt((*(FitInterface->GetMuonIn()->getCovMatrixDeltaY()))(4, 4));
-
-        outMu_sigmaX  = TMath::Sqrt((*(FitInterface->GetMuonOut()->getCovMatrixDeltaY()))(0, 0));
-        outMu_sigmaY  = TMath::Sqrt((*(FitInterface->GetMuonOut()->getCovMatrixDeltaY()))(1, 1));
-        outMu_sigmaPx = TMath::Sqrt((*(FitInterface->GetMuonOut()->getCovMatrixDeltaY()))(2, 2));
-        outMu_sigmaPy = TMath::Sqrt((*(FitInterface->GetMuonOut()->getCovMatrixDeltaY()))(3, 3));
-        outMu_sigmaPz = TMath::Sqrt((*(FitInterface->GetMuonOut()->getCovMatrixDeltaY()))(4, 4));
-
-        gamma_sigmaX = TMath::Sqrt((*(FitInterface->GetOutPhotons()[0]->getCovMatrixDeltaY()))(0, 0));
-        gamma_sigmaY = TMath::Sqrt((*(FitInterface->GetOutPhotons()[0]->getCovMatrixDeltaY()))(1, 1));
-        gamma_sigmaE = TMath::Sqrt((*(FitInterface->GetOutPhotons()[0]->getCovMatrixDeltaY()))(2, 2));
-
-        proton_sigmaP     = TMath::Sqrt((*(FitInterface->GetProtonOut()->getCovMatrixDeltaY()))(0, 0));
-        proton_sigmaTheta = TMath::Sqrt((*(FitInterface->GetProtonOut()->getCovMatrixDeltaY()))(1, 1));
-        proton_sigmaPhi   = TMath::Sqrt((*(FitInterface->GetProtonOut()->getCovMatrixDeltaY()))(2, 2));
-
-        ringA_sigmaR   = TMath::Sqrt((*(FitInterface->GetHitA()->getCovMatrixDeltaY()))(0, 0));
-        ringA_sigmaPhi = TMath::Sqrt((*(FitInterface->GetHitA()->getCovMatrixDeltaY()))(1, 1));
-        ringA_sigmaZ   = TMath::Sqrt((*(FitInterface->GetHitA()->getCovMatrixDeltaY()))(2, 2));
-
-        ringB_sigmaR   = TMath::Sqrt((*(FitInterface->GetHitA()->getCovMatrixDeltaY()))(0, 0));
-        ringB_sigmaPhi = TMath::Sqrt((*(FitInterface->GetHitA()->getCovMatrixDeltaY()))(1, 1));
-        ringB_sigmaZ   = TMath::Sqrt((*(FitInterface->GetHitA()->getCovMatrixDeltaY()))(2, 2));
-         
-        fit_conv = FitInterface->GetFitOutput(chi2_fit, ndf_fit);  
-
-        Q2_fit = PaAlgo::Q2 (inMuFit_TL, outMuFit_TL); 
-        y_fit  = (inMuFit_TL.E() - outMuFit_TL.E()) / inMuFit_TL.E(); 
-        nu_fit = (inMuFit_TL.E() - outMuFit_TL.E()); 
-        t_fit  = (targetFit_TL - protonFit_TL) * (targetFit_TL - protonFit_TL);  
-
-        bool Q2_cut = false; 
-        bool y_cut  = false; 
-        bool t_cut  = false; 
-        bool nu_cut = false; 
-
-        if ((Q2_fit > 1 && Q2_fit < 10) || std::isnan(Q2_fit)) {
-          Q2_cut = true;
-          eventFlags.setFlagByName("Q2Fit_flag", true);
-        }
-        if ((y_fit > 0.05 && y_fit < 0.95) || std::isnan(y_fit)) {
-          y_cut = true; 
-          eventFlags.setFlagByName("yFit_flag", true);
-        }
-        if ((t_fit < -0.08 && t_fit > -0.64) || std::isnan(t_fit)) {
-          t_cut = true;
-          eventFlags.setFlagByName("tFit_flag", true);
-          std::cout << std::endl << "DEBUG::" << Evt << ","  << Run << ","  << cl_id[0] << "," << y_fit << "," << Q2_fit << "," << t_fit << std::endl;  
-        }
-/*         if (t_fit >= -0.08 || t_fit <= -0.64) {  
-          t_cut = false; 
-        } else {
-          t_cut = true; 
-          eventFlags.setFlagByName("tFit_flag", true);
-        } */
-        if ((nu_fit > 10 && nu_fit < 144) || std::isnan(nu_fit)) { 
-          nu_cut = true; 
-          eventFlags.setFlagByName("nuFit_flag", true);
-        }
-        if (Q2_cut && y_cut && t_cut && nu_cut) {
-          eventFlags.setFlagByName("kinFitAll_flag", true);
-        }
-
-        nCombs++; // increment the counter 
-
-        if (protonPassCount >= 4) { // Begin loop over candidats to save 
-          eventFlags.setFlagByName("nExclCombo_flag", true);
-          save_evt = true;
-          if (!pi0_cl_id.empty()) { 
-            for (auto iLow = std::size_t{0}; iLow < pi0_cl_id.size(); ++iLow) { // Begin loop over low-energy clusters 
-              eventFlags.setFlagByName("nExclComboPi0_flag", true);
-              const auto& cl_LowE = e.vCaloClus(pi0_cl_id[iLow]);
-              low_calo = cl_LowE.iCalorim();
-
-              // Build low-energy photon TLorentzVectors using function
-              buildClusterVecs(e, v, pi0_cl_id[iLow], gammaLow_TL, clusterLow_TL);
-
-              if (e.IsMC()) tree_MC->Fill();
-              else tree->Fill();
+          if (TiS_flag && (eventFlags.getFlag("passHodo_flag"))) {
+            if (Q2 >= 1 && Q2 <= 10) {
+              eventFlags.setFlagByName("Q2_DVCS_flag", true);
+              if (y >= 0.05 && y <= 0.9) {
+                eventFlags.setFlagByName("y_DVCS_flag", true);
+                if (DeltaPtPassed) {
+                  eventFlags.setFlagByName("delta_pt_flag", true); 
+                  if (DeltaPhiPassed) {
+                    eventFlags.setFlagByName("delta_phi_flag", true);
+                    if (DeltaZPassed) {
+                      eventFlags.setFlagByName("delta_Z_flag", true);
+                      if (DeltaM2xPassed) {
+                        eventFlags.setFlagByName("M2x_flag", true);
+                      }
+                    }
+                  }
+                }
+              }
             }
-          } else {
-            low_calo = -999;
+          }
 
-            if (e.IsMC()) tree_MC->Fill();
-            else tree->Fill();
+          //*******************************************
+          // Perform the kinematic fit for current combination and save results 
+          static Fitter* FitInterface = &(Fitter::GetInstance());
+          FitInterface->Init(R_vtx, beam_track, outMu_track, p_camera_TL, posRingA_vec, posRingB_vec); 
+          FitInterface->Add_Photon(e.vCaloClus(cl_id[0]));
+          FitInterface->SetupFit();
+          FitInterface->DoFit(0, 1000);
+
+          pVtxFit_vec     = *(FitInterface->GetVertex()->getCurr3Vec());
+          posRingAFit_vec = *(FitInterface->GetHitA()->getCurr3Vec());
+          posRingBFit_vec = *(FitInterface->GetHitB()->getCurr3Vec()); 
+          clusterFit_vec  = *(FitInterface->GetOutPhotons()[0]->getCurr3Vec());
+
+          inMuFit_TL   = *(FitInterface->GetMuonIn()->getCurr4Vec());
+          outMuFit_TL  = *(FitInterface->GetMuonOut()->getCurr4Vec());
+          protonFit_TL = *(FitInterface->GetProtonOut()->getCurr4Vec());
+          targetFit_TL = *(FitInterface->GetProtonTarget()->getCurr4Vec());
+          gammaFit_TL  = *(FitInterface->GetOutPhotons()[0]->getCurr4Vec());
+
+          inMu_sigmaX  = TMath::Sqrt((*(FitInterface->GetMuonIn()->getCovMatrixDeltaY()))(0, 0));
+          inMu_sigmaY  = TMath::Sqrt((*(FitInterface->GetMuonIn()->getCovMatrixDeltaY()))(1, 1));
+          inMu_sigmaPx = TMath::Sqrt((*(FitInterface->GetMuonIn()->getCovMatrixDeltaY()))(2, 2));
+          inMu_sigmaPy = TMath::Sqrt((*(FitInterface->GetMuonIn()->getCovMatrixDeltaY()))(3, 3));
+          inMu_sigmaPz = TMath::Sqrt((*(FitInterface->GetMuonIn()->getCovMatrixDeltaY()))(4, 4));
+
+          outMu_sigmaX  = TMath::Sqrt((*(FitInterface->GetMuonOut()->getCovMatrixDeltaY()))(0, 0));
+          outMu_sigmaY  = TMath::Sqrt((*(FitInterface->GetMuonOut()->getCovMatrixDeltaY()))(1, 1));
+          outMu_sigmaPx = TMath::Sqrt((*(FitInterface->GetMuonOut()->getCovMatrixDeltaY()))(2, 2));
+          outMu_sigmaPy = TMath::Sqrt((*(FitInterface->GetMuonOut()->getCovMatrixDeltaY()))(3, 3));
+          outMu_sigmaPz = TMath::Sqrt((*(FitInterface->GetMuonOut()->getCovMatrixDeltaY()))(4, 4));
+
+          gamma_sigmaX = TMath::Sqrt((*(FitInterface->GetOutPhotons()[0]->getCovMatrixDeltaY()))(0, 0));
+          gamma_sigmaY = TMath::Sqrt((*(FitInterface->GetOutPhotons()[0]->getCovMatrixDeltaY()))(1, 1));
+          gamma_sigmaE = TMath::Sqrt((*(FitInterface->GetOutPhotons()[0]->getCovMatrixDeltaY()))(2, 2));
+
+          proton_sigmaP     = TMath::Sqrt((*(FitInterface->GetProtonOut()->getCovMatrixDeltaY()))(0, 0));
+          proton_sigmaTheta = TMath::Sqrt((*(FitInterface->GetProtonOut()->getCovMatrixDeltaY()))(1, 1));
+          proton_sigmaPhi   = TMath::Sqrt((*(FitInterface->GetProtonOut()->getCovMatrixDeltaY()))(2, 2));
+
+          ringA_sigmaR   = TMath::Sqrt((*(FitInterface->GetHitA()->getCovMatrixDeltaY()))(0, 0));
+          ringA_sigmaPhi = TMath::Sqrt((*(FitInterface->GetHitA()->getCovMatrixDeltaY()))(1, 1));
+          ringA_sigmaZ   = TMath::Sqrt((*(FitInterface->GetHitA()->getCovMatrixDeltaY()))(2, 2));
+
+          ringB_sigmaR   = TMath::Sqrt((*(FitInterface->GetHitA()->getCovMatrixDeltaY()))(0, 0));
+          ringB_sigmaPhi = TMath::Sqrt((*(FitInterface->GetHitA()->getCovMatrixDeltaY()))(1, 1));
+          ringB_sigmaZ   = TMath::Sqrt((*(FitInterface->GetHitA()->getCovMatrixDeltaY()))(2, 2));
+          
+          fit_conv = FitInterface->GetFitOutput(chi2_fit, ndf_fit);  
+
+          Q2_fit = PaAlgo::Q2 (inMuFit_TL, outMuFit_TL); 
+          y_fit  = (inMuFit_TL.E() - outMuFit_TL.E()) / inMuFit_TL.E(); 
+          nu_fit = (inMuFit_TL.E() - outMuFit_TL.E()); 
+          t_fit  = (targetFit_TL - protonFit_TL) * (targetFit_TL - protonFit_TL);  
+
+          bool Q2_cut = false; 
+          bool y_cut  = false; 
+          bool t_cut  = false; 
+          bool nu_cut = false; 
+
+          if ((Q2_fit > 1 && Q2_fit < 10) || std::isnan(Q2_fit)) {
+            Q2_cut = true;
+            eventFlags.setFlagByName("Q2Fit_flag", true);
+          }
+          if ((y_fit > 0.05 && y_fit < 0.95) || std::isnan(y_fit)) {
+            y_cut = true; 
+            eventFlags.setFlagByName("yFit_flag", true);
+          }
+          if ((t_fit < -0.08 && t_fit > -0.64) || std::isnan(t_fit)) {
+            t_cut = true;
+            eventFlags.setFlagByName("tFit_flag", true);
+            //std::cout << std::endl << "DEBUG::" << Evt << ","  << Run << ","  << cl_id[0] << "," << y_fit << "," << Q2_fit << "," << t_fit << std::endl;  
+          }
+          if ((nu_fit > 10 && nu_fit < 144) || std::isnan(nu_fit)) { 
+            nu_cut = true; 
+            eventFlags.setFlagByName("nuFit_flag", true);
+          }
+          if (Q2_cut && y_cut && t_cut && nu_cut) {
+            eventFlags.setFlagByName("kinFitAll_flag", true);
+          }
+
+          //*******************************************
+          // Choose exclusive candidates to save
+          if (protonPassCount >= 4) {  // Begin loop over exclusive candidates to save
+            eventFlags.setFlagByName("nExclCombo_flag", true);
+            save_evt = true;
+            multiplicity++; 
+
+            if (!pi0_cl_id.empty()) { 
+              for (auto iLow = std::size_t{0}; iLow < pi0_cl_id.size(); ++iLow) { // Begin loop over low-energy clusters 
+                eventFlags.setFlagByName("nExclComboPi0_flag", true);
+                const auto& cl_LowE = e.vCaloClus(pi0_cl_id[iLow]);
+                low_calo = cl_LowE.iCalorim();
+                buildClusterVecs(e, v, pi0_cl_id[iLow], gammaLow_TL, clusterLow_TL);
+                
+                if (real_data) tree->Fill();
+                else tree_MC->Fill();
+              }
+            } else {
+              if (real_data) tree->Fill();
+              else tree_MC->Fill();
+            } // End loop over low-energy clusters
+          } // End loop over exclusive candidates to save
+        } // End loop over proton candidates
+
+      } else { // Begin loop for pi0 MC 
+        for (auto proton: proton_candidates) { // Begin loop over proton candidates
+          eventFlags.setFlagByName("protonAll_flag", true); 
+
+          double beta = proton.beta;
+          if (beta >= 0.1 && beta <= 1) {betaPassed = true;}
+          if (!betaPassed) continue;
+          eventFlags.setFlagByName("proton_flag", true);
+
+          p_camera_TL = proton.p4; 
+          if (p_camera_TL.Mag() == 0) continue; // ignore events where there is no TL vector
+
+          if (!pi0_cl_id.empty()) { // Begin loop over low-energy clusters
+          for (auto iLow = std::size_t{0}; iLow < pi0_cl_id.size(); ++iLow) {  
+            eventFlags.setFlagByName("nComboPi0_flag", true);
+
+            const auto& cl_LowE = e.vCaloClus(pi0_cl_id[iLow]);
+            low_calo = cl_LowE.iCalorim();
+            buildClusterVecs(e, v, pi0_cl_id[iLow], gammaLow_TL, clusterLow_TL); // Build low-energy photon TLorentzVectors using function
+            TLorentzVector pi0_TL = gamma_TL + gammaLow_TL; 
+
+            //*******************************************
+            // Calculate exclusivity variables for all combintations of the vertex, pi0 and proton 
+            // 4 exclusivity variables: detla_phi, delta_pt, delta_Z, M2x -> different definitions than for DVCS selection 
+            TLorentzVector p_miss_pi0_TL = targ_TL + inMu_TL - outMu_TL - pi0_TL;
+            double pt_camera = p_camera_TL.Pt();
+            double pt_miss_pi0 = p_miss_pi0_TL.Pt(); 
+            double phi_camera = p_camera_TL.Phi();
+            double phi_miss_pi0 = p_miss_pi0_TL.Phi();
+
+            delta_pt = pt_camera - pt_miss_pi0; // transverse momentum
+            delta_phi = phi_camera - phi_miss_pi0; // azimuthal angle
+
+            posRingA_vec = proton.Ahit.vec;
+            posRingB_vec = proton.Bhit.vec;
+            double Z_inter = cam_inst->GetZA(R_vtx, posRingA_vec, posRingB_vec, phi_camera);
+            delta_Z = posRingA_vec.Z() - Z_inter; // z position of the hits in the inner CAMERA ring
+
+            M2x = (p_miss_pi0_TL - p_camera_TL) * (p_miss_pi0_TL - p_camera_TL);
+
+            //*******************************************
+            // No kinematic fit for the pi0 selection 
+
+            tree_MC->Fill();
+            }  
           } // End loop over low-energy clusters
-
-        } // End loop over candidats to save
-
-      } // End loop over proton candidates
+        } // End loop over proton candidates
+      } // End loop for pi0 MC
 
       //*******************************************
       // Debug statements ...
@@ -902,15 +939,12 @@ void UserEvent970(PaEvent & e) { // begin event loop
       printDebug("    mu': P: " + std::to_string(outMu_TL.P()) + " GeV/c, Charge: " + std::to_string(outMu.Q()));
       printDebug("    Kinematics: Q2: " + std::to_string(Q2) +  " GeV2, y: " + std::to_string(y) + ", W2: " + std::to_string(W2) + " GeV2, x: " + std::to_string(xbj));
 
-      //*******************************************
 		} // End loop over vertices 
 
   // Increment all counters whose flags are "true"
   eventFlags.incrementCounters(); 
   //Save the event
-  if (save_evt) { 
-    e.TagToSave();
-  }   
+  if (save_evt) {e.TagToSave();}   
 
 } // End event loop 
 

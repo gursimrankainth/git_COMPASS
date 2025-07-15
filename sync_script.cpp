@@ -37,7 +37,8 @@ int main() {
         {"/afs/cern.ch/user/g/gkainth/phast/user/u970_DVCS.cc", "/afs/cern.ch/user/g/gkainth/phastPackages/git_COMPASS/u970_DVCS.cc"},
         {"/afs/cern.ch/user/g/gkainth/phast/user/UConn_Tools.h", "/afs/cern.ch/user/g/gkainth/phastPackages/git_COMPASS/UConn_Tools.h"},
         {"/afs/cern.ch/user/g/gkainth/phast/user/UConn_Tools.cc", "/afs/cern.ch/user/g/gkainth/phastPackages/git_COMPASS/UConn_Tools.cc"},
-        {"/afs/cern.ch/user/g/gkainth/postPHAST.py", "/afs/cern.ch/user/g/gkainth/phastPackages/git_COMPASS/postPHAST.py"}
+        {"/afs/cern.ch/user/g/gkainth/postPhastDVCS.py", "/afs/cern.ch/user/g/gkainth/phastPackages/git_COMPASS/postPhastDVCS.py"},
+        {"/afs/cern.ch/user/g/gkainth/postPhastExclPi0.py", "/afs/cern.ch/user/g/gkainth/phastPackages/git_COMPASS/postPhastExclPi0.py"}
     };
 
     // Sync logic
