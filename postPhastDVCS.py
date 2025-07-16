@@ -89,6 +89,12 @@ for event in in_tree:
         if event.TiS_flag == False:
             continue
 
+    # Passed Hodoscope and trigger checks 
+    if event.trig_flag == False: 
+        continue 
+    if event.hodoPass == False: 
+        continue 
+
     # Exclusivity variables
     if abs(event.delta_pt) > 0.3:
         continue

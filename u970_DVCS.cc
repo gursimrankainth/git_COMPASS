@@ -191,12 +191,13 @@ void UserEvent970(PaEvent & e) { // begin event loop
 
     //*******************************************
     // Event selection flags (not the same as statistic counter flags)
-    bool trig_MT   = false;
-    bool trig_LT   = false;
-    bool trig_OT   = false;
+    bool trig_MT   = false; // Middle trigger 
+    bool trig_LT   = false; // Ladder trigger 
+    bool trig_OT   = false; // Outer trigger 
     bool trig_LAST = false;
     bool trig_flag = false; 
     bool TiS_flag  = true;
+    bool hodoPass  = false; 
     bool fit_conv  = false; 
     bool save_evt  = false; 
 
@@ -224,6 +225,8 @@ void UserEvent970(PaEvent & e) { // begin event loop
           tree->Branch("trig_LT", &trig_LT, "trig_LT/O");
           tree->Branch("trig_OT", &trig_OT, "trig_OT/O");
           tree->Branch("trig_LAST", &trig_LAST, "trig_LAST/O");
+          tree->Branch("trig_flag", &trig_flag, "trig_flag/O");
+          tree->Branch("hodoPass", &hodoPass, "hodoPass/O");
           // Particle/vertex vectors 
           tree->Branch("inMu_TL", &inMu_TL);
           tree->Branch("outMu_TL", &outMu_TL);
@@ -304,6 +307,8 @@ void UserEvent970(PaEvent & e) { // begin event loop
           tree_MC->Branch("trig_LT", &trig_LT, "trig_LT/O");
           tree_MC->Branch("trig_OT", &trig_OT, "trig_OT/O");
           tree_MC->Branch("trig_LAST", &trig_LAST, "trig_LAST/O");
+          tree_MC->Branch("trig_flag", &trig_flag, "trig_flag/O");
+          tree_MC->Branch("hodoPass", &hodoPass, "hodoPass/O"); 
           // Particle/vertex vectors 
           tree_MC->Branch("inMu_TL", &inMu_TL);
           tree_MC->Branch("outMu_TL", &outMu_TL);
@@ -603,8 +608,12 @@ void UserEvent970(PaEvent & e) { // begin event loop
       static OutMuParams outMuParams; // Create an instance of OutMuParams 
 
       // outMu_flag will be true as long as any muon is found ( and all other conditions satisfied), even if it doesnt pass the full Hodoscope check 
-      bool outMu_flag = outMuCheck(e, v, iv, Run, beam, HodoHelper, trig_flag, TiS_flag, outMuParams, outMu, outMu_track, par_outMu, eventFlags); 
+      bool outMu_flag = outMuCheck(e, v, iv, Run, beam, HodoHelper, trig_flag, TiS_flag, outMuParams, 
+                                  outMu, outMu_track, par_outMu, eventFlags); 
       if (!outMu_flag) continue; // ignore events that dont satisfy requirements for scattered muon
+
+      int i_omu_check_hodo = HodoHelper->iMuPrim(v, false, false, true, true, 15, true, true);
+	    if (i_omu_check_hodo != -1) {hodoPass = true;}
 
       //*******************************************
       // Kinematic variables ... (1/2)
@@ -863,6 +872,8 @@ void UserEvent970(PaEvent & e) { // begin event loop
             eventFlags.setFlagByName("nExclCombo_flag", true);
             save_evt = true;
             multiplicity++; 
+
+            std::cout << std::endl << Evt << ", " << hodoPass << std::endl; 
 
             if (!pi0_cl_id.empty()) { 
               for (auto iLow = std::size_t{0}; iLow < pi0_cl_id.size(); ++iLow) { // Begin loop over low-energy clusters 

@@ -317,7 +317,7 @@ bool outMuCheck(const PaEvent &e, const PaVertex &v, int vertexIndex, int Run, c
 	}
  
 	// Strict check: with hodo and full cuts
-	bool hodo_passed_DVCS = false;
+	bool hodo_passed_DVCS = false; 
 	int i_omu_check_hodo = HodoHelper->iMuPrim(v, false, false, true, true, 15, true, true);
 	if (i_omu_check_hodo != -1) {
 		i_omu = i_omu_check_hodo;  // Use better muon if found
