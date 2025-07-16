@@ -1,0 +1,41 @@
+ Total no. of events processed by PHAST user script
+ No. of events with a primary vertex
+ No. of events where beam has a track with parameters
+ No. of events where beam was first measured before the target
+ No. of events where beam momentum falls within flux requirements
+ No. of events where beam momentum error falls within flux requirements
+ No. of events where beam is detected by BMS
+ No. of events where beam is detected by SCIFI
+ No. of events where beam is detected by SI
+ No. of events where beam crosses full target length
+ No. of events where beam track meantime is within flux requirements
+ No. of events where time in spill is within flux requirements
+ No. of events with a scattered muon (before full Hodo check)
+ No. of events where scattered muon passes full Hodoscope check
+ No. of events where the vertex is in the target
+ No. of events with MT, LT, OT or LAST physics triggers
+ No. of events where scattered muon passes Hodoscope check (DVCS stats)
+ No. of events where scattered muon has the same charge as the beam
+ No. of events where first and last scattered muon z coord. are measured before and after SM1
+ No. of events where primary vertex only has one outgoing track
+ No. of events where Q2 > 0.5 (DIS)
+ No. of events that have any clusters
+ No. of events where clusters are not associated with charged tracks
+ No. of events where cluster timing is within requirements
+ No. of events with low energy photons
+ No. of events where high energy clusters are found in ECal 0, 1 or 2 only
+ No. of events where there is only a single high energy cluster in the ECals
+ No. of events with proton candidates
+ No. of events where proton candidates have 0.1 < beta < 1
+ No. of events where |delta_pt| < 0.3 GeV/c
+ No. of events where |delta_phi| < 0.4 rad
+ No. of events where |delta_Z| < 16 cm
+ No. of events where |(M_x)^2| < 0.3 (GeV/c^2)^2
+ No. of events where 1 < Q2_fit < 10
+ No. of events where 0.05 < y_fit < 0.95
+ No. of events where -0.08 < t_fit < -0.64
+ No. of events where 10 < nu_fit < 144
+ No. of events surviving all kinematic cuts (Q2, y, t, nu)
+ No. of events where at least one vertex, photon and proton combination satisfies 4/5 exclusivity cuts
+ No. of events with pi0 candidates which satisfy at least 4/5 exclsuvity cuts
+ No. of events (pi0 MC) with pi0 candidates - no pi0 exclusivity cuts
