@@ -2,27 +2,31 @@ import argparse
 import glob
 import os
 import ROOT
+import numpy as np
+from collections import defaultdict
 
 ROOT.ROOT.EnableImplicitMT()
 
 # ********************************
 # Parse arguments
-parser = argparse.ArgumentParser(description="Filter DVCS tree with bad spill, multiplicity, and duplicate event cuts.")
-parser.add_argument("--tree", type=str, required=False, default=None,
-                    help="Tree name (e.g. USR970 for real data, USR970_MC for MC)")
+parser = argparse.ArgumentParser(description="Filter tree to select only exclusive photon events (DVCS/BH).")
+parser.add_argument(
+    "--data", type=str, required=True, choices=["real", "MC"],
+    help="Specify whether the input data is 'real' or 'MC'"
+)
 parser.add_argument("--period", type=str, required=False, default=None,
                     help="Period string (e.g. 09)")
 args = parser.parse_args()
 
-tree_name = args.tree if args.tree else input("Enter the tree name (USR970 for real data, USR970_MC for MC): ").strip()
+tree_name = "USR970"
 period = args.period if args.period else input("Enter the period (e.g. 09): ").strip()
 
-input_file = f"merged_P{period}_{tree_name}.root"
-output_file = f"filtered_P{period}_{tree_name}.root"
-output_tree_name = f"{tree_name}_filtered"
+input_file = f"merged_P{period}.root"
+output_file = f"filtered_P{period}.root"
+output_tree_name = "USR970_filtered"
 
-# Determine if real data (assuming 'MC' in tree name means MC)
-is_real_data = "MC" not in tree_name
+# Determine if real data (set using user input)
+is_real_data = args.data == "real"
 
 # ********************************
 # Load bad spill list if real data
@@ -44,11 +48,11 @@ if is_real_data:
             parts = line.strip().split()
             run, spill = int(parts[0]), int(parts[1])
             flux, LAST, LT, MT, OT, RICH, ECAL, empty = map(int, parts[2:])
-            # Add to bad_spills if bad due to flags other than LAST or RICH
-            if flux == 1 or LT == 1 or MT == 1 or OT == 1 or ECAL == 1 or empty == 1:
+            #if flux == 1 or LT == 1 or MT == 1 or OT == 1 or ECAL == 1 or empty == 1:
+            if flux == 1 or MT == 1 or LT == 1 or RICH == 1 or ECAL == 1:
                 bad_spills.add((run, spill))
 
-print(f"Loaded {len(bad_spills)} bad spills (excluding LAST and RICH only) ...")
+print(f"Loaded {len(bad_spills)} bad spills ...")
 
 # ********************************
 # Open input ROOT file and get tree
@@ -63,67 +67,70 @@ if not in_tree:
 print(f"Processing {in_tree.GetEntries()} entries in tree '{tree_name}'...")
 
 # ********************************
-# Phase 1: Find all events with multiplicity > 1
-events_with_high_mult = set()
+# Identify events with multiplicty greater than one
+multiplicity = defaultdict(set)
 for i in range(in_tree.GetEntries()):
     in_tree.GetEntry(i)
-    if in_tree.multiplicity > 1:
-        events_with_high_mult.add(in_tree.Evt)
+    event_id = in_tree.Evt
+    comb = (
+        in_tree.inMu_TL.Px(),
+        in_tree.outMu_TL.Px(),
+        in_tree.gamma_TL.Px(),
+        in_tree.p_camera_TL.Px()
+    )
+    multiplicity[event_id].add(comb)
 
-print(f"Found {len(events_with_high_mult)} events with multiplicity > 1 ...")
+events_with_multiple_combs = {evt for evt, combs in multiplicity.items() if len(combs) > 1}
+print(f"Found {len(events_with_multiple_combs)} events with multiple unique particle combinations ...")
 
 # ********************************
-# Phase 2: Apply cuts and save passing events
+# Apply cuts and save the passing events 
 out_file = ROOT.TFile.Open(output_file, "RECREATE")
 out_tree = in_tree.CloneTree(0)
 
 n_total = in_tree.GetEntries()
 n_kept = 0
 
-written_keys = set()  # Track written 4-momentum combinations for deduplication
-
 for event in in_tree:
     if is_real_data:
         if (event.Run, event.Spill) in bad_spills:
             continue
-        if event.TiS_flag == False:
+        if not event.TiS_flag:
+            continue 
+
+    # Passed hodoscope and trigger checks 
+    if not (event.trig_MT or event.trig_OT or event.trig_LT):
+        continue 
+    if not event.hodoPass:
+        continue 
+
+    # Exclusivity variables 
+    if np.abs(event.delta_pt) > 0.3:
+        continue 
+    delta_phi = event.delta_phi
+    if not ((-0.4 <= delta_phi <= 0.4) or
+            (-0.4 <= delta_phi + 2 * np.pi <= 0.4) or
+            (-0.4 <= delta_phi - 2 * np.pi <= 0.4)):
+        continue
+    if np.abs(event.delta_Z) > 16:
+        continue 
+    if np.abs(event.M2x) > 0.3:
+        continue 
+
+    # Remove events with multiplicity > 1 
+    if event.Evt in events_with_multiple_combs: 
+        continue 
+
+    # Remove visible pi0 events 
+    if (event.low_calo == 0 and event.clusterLow_TL.T() > 0.5) or (event.low_calo == 1 and event.clusterLow_TL.T() > 0.63):
+        pi0_TL = event.gamma_TL + event.gammaLow_TL
+        pi0_M = pi0_TL.M()
+        if (0.11 < pi0_M < 0.155):
             continue
-
-    # Passed Hodoscope and trigger checks 
-    if event.trig_flag == False: 
+       
+    # Kinematic fit 
+    if not event.fit_conv:
         continue 
-    if event.hodoPass == False: 
-        continue 
-
-    # Exclusivity variables
-    if abs(event.delta_pt) > 0.3:
-        continue
-    if ROOT.TMath.Abs(ROOT.TVector2.Phi_mpi_pi(event.delta_phi)) > 0.4:
-        continue
-    if abs(event.delta_Z) > 16:
-        continue
-    if abs(event.M2x) > 0.3:
-        continue
-
-    # Multiplicity
-    if event.Evt in events_with_high_mult:
-        continue
-
-    # -*THIS IS NOT A CUT*- Deduplication: only if low_calo == 2 
-    if event.low_calo == 2:
-        key = (
-            round(event.inMu_TL.Px(), 6),
-            round(event.outMu_TL.Px(), 6),
-            round(event.gamma_TL.Px(), 6),
-            round(event.p_camera_TL.Px(), 6)
-        )
-        if key in written_keys:
-            continue  # Already wrote this event — skip
-        written_keys.add(key)
-
-    # Kinematic fit cuts
-    if event.fit_conv == False:
-        continue
     if not (1 < event.Q2_fit < 10):
         continue
     if not (0.05 < event.y_fit < 0.95):
@@ -133,19 +140,18 @@ for event in in_tree:
     if not (10 < event.nu_fit < 144):
         continue
     chi2_red = event.chi2_fit / event.ndf_fit
-    if chi2_red > 10:
+    if not chi2_red < 10:
         continue
-
-    # Passed all cuts — write event
+    
+    # Fill the tree with passing events 
     out_tree.Fill()
     n_kept += 1
 
-print(f"Events kept after filtering: {n_kept} / {n_total} ...")
-print(f"Filtered data saved to {output_file} with tree name '{output_tree_name}'")
+print(f"Events kept after filtering: {n_kept} / {n_total}")
+print(f"Filtered events saved to: {output_file} ({n_kept} entries)")
 
 # Write and close
 out_tree.SetName(output_tree_name)
 out_tree.Write()
 out_file.Close()
 in_file.Close()
-
