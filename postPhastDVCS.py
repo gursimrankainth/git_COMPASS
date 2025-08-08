@@ -48,8 +48,8 @@ if is_real_data:
             parts = line.strip().split()
             run, spill = int(parts[0]), int(parts[1])
             flux, LAST, LT, MT, OT, RICH, ECAL, empty = map(int, parts[2:])
-            #if flux == 1 or LT == 1 or MT == 1 or OT == 1 or ECAL == 1 or empty == 1:
-            if flux == 1 or MT == 1 or LT == 1 or RICH == 1 or ECAL == 1:
+            if flux == 1 or LT == 1 or MT == 1 or OT == 1 or ECAL == 1 or empty == 1:
+            #if flux == 1 or MT == 1 or LT == 1 or RICH == 1 or ECAL == 1:
                 bad_spills.add((run, spill))
 
 print(f"Loaded {len(bad_spills)} bad spills ...")

@@ -62,7 +62,8 @@ void UserEvent970(PaEvent & e) { // begin event loop
 
     // Declare all objects globally
     // Add histograms as well if needed (ex. static TH1F* h97_Zprim  = NULL;)
-    static TTree* tree(NULL);     // tree for sotring reconstructed and generated data 
+    static TTree* tree(NULL);     // tree for sotring reconstructed data
+    static TTree* tree_gen(NULL); // tree for sotring generated data 
 
     //
     // Variables to be stored into analysis Ntuple
@@ -97,6 +98,13 @@ void UserEvent970(PaEvent & e) { // begin event loop
     static TLorentzVector p_camera_TL;           // energy-momentum four vector of the proton measured by camera
     static TLorentzVector gammaLow_TL;           // energy-momentum four vector of the low energy photon (used to find pi0)
     static TLorentzVector clusterLow_TL;         // vector used to store the position and energy information of the low-energy cluster
+
+    int ecal0id = PaSetup::Ref().iCalorim("EC00P1__"); //ECal 0 ID
+    int ecal1id = PaSetup::Ref().iCalorim("EC01P1__"); // ECal 1 ID
+    int ecal2id = PaSetup::Ref().iCalorim("EC02P1__"); // ECal 2 ID 
+    static float EC0_thr = 4; // ECAL thresholds for exclusive event selection
+    static float EC1_thr = 5;
+    static float EC2_thr = 10;
 
     static int low_calo = -999;    // calorimeter ID for low energy cluster used for pi0 reconstruction 
     static int excl_calo;   // calorimeter ID for exclusive photon cluster  
@@ -183,6 +191,9 @@ void UserEvent970(PaEvent & e) { // begin event loop
     bool hodoPass  = false; 
     bool fit_conv  = false; 
     bool save_evt  = false; 
+
+    // Generated event selection (not the same as statistic counter or event selection flags)
+    bool recCombFound = false; 
 
     //*****************************************************************************
     static bool first(true);
@@ -274,13 +285,43 @@ void UserEvent970(PaEvent & e) { // begin event loop
         tree->Branch("ringB_sigmaR", &ringB_sigmaR, "ringB_sigmaR/D");
         tree->Branch("ringB_sigmaZ", &ringB_sigmaZ, "ringB_sigmaZ/D");
         tree->Branch("ringB_sigmaPhi", &ringB_sigmaPhi, "ringB_sigmaPhi/D");
-        //HEPGEN BH Weights 
+        // HEPGEN BH Weights 
         tree->Branch("phase_fac", &phase_fac, "phase_fac/D");
         tree->Branch("weight_BH", &weight_BH, "weight_BH/D");
         tree->Branch("weight_all", &weight_all, "weight_all/D");
         tree->Branch("weight_DVCS", &weight_DVCS, "weight_DVCS/D");
         tree->Branch("weight_PAMBH", &weight_PAMBH, "weight_PAMBH/D");
         tree->Branch("weight_Interference", &weight_Interference, "weight_Interference/D");
+
+        //*******************************************
+        tree_gen = new TTree("USR970_gen","User 970 DVCS NTuple (Generated)");
+        // Basic event information
+        tree_gen->Branch("Run", &Run, "Run/I");
+        tree_gen->Branch("Evt", &Evt, "Evt/l");
+        tree_gen->Branch("Spill", &Spill, "Spill/I");
+        tree_gen->Branch("Q_beam", &Q_beam, "Q_beam/I");
+        // Particle/vertex vectors 
+        tree_gen->Branch("inMu_TL", &inMu_TL);
+        tree_gen->Branch("outMu_TL", &outMu_TL);
+        tree_gen->Branch("gamma_TL", &gamma_TL);
+        tree_gen->Branch("cluster_TL", &cluster_TL);
+        tree_gen->Branch("p_camera_TL", &p_camera_TL);
+        tree_gen->Branch("pVtx_vec", &pVtx_vec); 
+        // Kinematic variables 
+        tree_gen->Branch("y", &y, "y/D");
+        tree_gen->Branch("t", &t, "t/D");
+        tree_gen->Branch("nu", &nu, "nu/D");
+        tree_gen->Branch("Q2", &Q2, "Q2/D");
+        tree_gen->Branch("W2", &W2, "W2/D");
+        tree_gen->Branch("xbj", &xbj, "xbj/D");
+        tree_gen->Branch("phi_gg", &phi_gg, "phi_gg/D");
+        // HEPGEN BH Weights 
+        tree_gen->Branch("phase_fac", &phase_fac, "phase_fac/D");
+        tree_gen->Branch("weight_BH", &weight_BH, "weight_BH/D");
+        tree_gen->Branch("weight_all", &weight_all, "weight_all/D");
+        tree_gen->Branch("weight_DVCS", &weight_DVCS, "weight_DVCS/D");
+        tree_gen->Branch("weight_PAMBH", &weight_PAMBH, "weight_PAMBH/D");
+        tree_gen->Branch("weight_Interference", &weight_Interference, "weight_Interference/D");
         
         first = false;
     } // end of histogram booking
@@ -357,7 +398,10 @@ void UserEvent970(PaEvent & e) { // begin event loop
     eventFlags.createFlag("nExclCombo_flag", "No. of events where at least one vertex, photon and proton combination satisfies 4/5 exclusivity cuts");
     eventFlags.createFlag("nExclComboPi0_flag", "No. of events with pi0 candidates which satisfy at least 4/5 exclsuvity cuts");
     eventFlags.createFlag("nComboPi0_flag", "No. of events (pi0 MC) with pi0 candidates - no pi0 exclusivity cuts"); 
-     
+    
+    eventFlags.createFlag("fluxGen_flag", "No. of generated events that pass the flux check");
+    eventFlags.createFlag("saveGen_flag", "No. of generated events with valid DVCS combination"); 
+
     eventFlags.resetFlags(); // Reset all event statistic counter flags to false
 
     Run         = e.RunNum();
@@ -379,21 +423,22 @@ void UserEvent970(PaEvent & e) { // begin event loop
     }
 
     cam_inst = & PaCamera::GetInstance();
-    cam_inst->NewEvent(e, e.IsMC()); // only have it like this for the x-check for the full analysis use cam_inst->NewEvent(e); 
-    //cam_inst->NewEvent(e);
+    //cam_inst->NewEvent(e, e.IsMC()); // only have it like this for the x-check for the full analysis use cam_inst->NewEvent(e); 
+    cam_inst->NewEvent(e);
 
     //*******************************************
-    // Get MC PAM weights for HEPGEN and save to tree_MC
-    if (e.IsMC()) { // Begin loop over MC data (important only for HEPGEN BH but save it for all anyways) 
+    // Get MC PAM weights for HEPGEN BH 
+    if (e.IsMC()) { // Begin loop over MC data 
       NLUDATA ld; 
-      if (e.MCgen(ld)) {
+      if (e.MCgen(ld)) { // Begin loop to get event weights 
         weight_all  = ld.uservar[2]; 
         weight_DVCS = ld.uservar[15];  
         weight_BH   = ld.uservar[16];  
         phase_fac   = ld.uservar[9]; 
         weight_Interference = weight_all - weight_DVCS - weight_BH;
-      }
+      } // End loop to get event weights 
     } // End loop over MC data 
+  
 
     // Check for exclusive event topology in the case of LEPTO
     enum class LujetCheckStatus {NOT_MC, I};
@@ -402,9 +447,8 @@ void UserEvent970(PaEvent & e) { // begin event loop
     }
 
     //*******************************************  
-    eventFlags.setFlagByName("allEvts_flag", true); 
-    
     // Loop over reconstructed vertices in the event - REAL and MC RECONSTRUCTED DATA 
+    eventFlags.setFlagByName("allEvts_flag", true); 
 		for (int iv = 0; iv < e.NVertex(); iv++) { // begin loop over vertices
 			//******************************************* 
 			// Store info about primary vertex (if found) 
@@ -478,16 +522,8 @@ void UserEvent970(PaEvent & e) { // begin event loop
       //*******************************************
       // Store info about real photon - check ECals for single neutral cluster (can be from any exclusive event (DVCS or BH))
       // ! CURRENTLY LOOKING FOR ANY NEUTRAL CLUSTERS, NOT SPECIFICALLY FOR ONE !
-      int ecal0id = PaSetup::Ref().iCalorim("EC00P1__");
-      int ecal1id = PaSetup::Ref().iCalorim("EC01P1__");
-      int ecal2id = PaSetup::Ref().iCalorim("EC02P1__");
-
       std::vector<int> cl_id; // Store cluster index for valid exclusive clusters
       std::vector<int> pi0_cl_id; // Store cluster index for low-energy clusters 
-
-      float EC0_thr = 4; // ECAL thresholds for exclusive event selection
-      float EC1_thr = 5;
-      float EC2_thr = 10;
 
 /*       float EC0Low_thr = 0.5; // ECAL thresholds for visible pi0 identification (anything below this is noise)
       float EC1Low_thr = 0.63;  */
@@ -549,6 +585,7 @@ void UserEvent970(PaEvent & e) { // begin event loop
         double phi_miss = p_miss_TL.Phi();
 
         for (auto proton: proton_candidates) { // Begin loop over proton candidates
+          recCombFound = true; 
           eventFlags.setFlagByName("protonAll_flag", true); 
 
           bool DeltaPtPassed  = false; 
@@ -707,23 +744,24 @@ void UserEvent970(PaEvent & e) { // begin event loop
 
           //*******************************************
           // Choose exclusive candidates to save
-          if (protonPassCount >= 4) {  
+          if (protonPassCount >= 4) { // Begin loop over candidates which pass 4/5 exclusivity cuts 
             eventFlags.setFlagByName("nExclCombo_flag", true);
             save_evt = true;
-          } 
 
-          if (!pi0_cl_id.empty()) { // Begin loop over low-energy clusters
-            for (auto iLow = std::size_t{0}; iLow < pi0_cl_id.size(); ++iLow) {  
-              eventFlags.setFlagByName("nExclComboPi0_flag", true);
-              const auto& cl_LowE = e.vCaloClus(pi0_cl_id[iLow]);
-              low_calo = cl_LowE.iCalorim();
-              buildClusterVecs(e, v, pi0_cl_id[iLow], gammaLow_TL, clusterLow_TL);
-              
+            if (!pi0_cl_id.empty()) { // Begin loop over low-energy clusters
+              for (auto iLow = std::size_t{0}; iLow < pi0_cl_id.size(); ++iLow) {  
+                eventFlags.setFlagByName("nExclComboPi0_flag", true);
+                const auto& cl_LowE = e.vCaloClus(pi0_cl_id[iLow]);
+                low_calo = cl_LowE.iCalorim();
+                buildClusterVecs(e, v, pi0_cl_id[iLow], gammaLow_TL, clusterLow_TL);
+                
+                tree->Fill();
+              }
+            } else {
               tree->Fill();
-            }
-          } else {
-            tree->Fill();
-          } // End loop over low-energy clusters
+            } // End loop over low-energy clusters
+            
+          } // End loop over candidates which pass 4/5 exclusivity cuts 
         } // End loop over proton candidates
 
       } else { // Begin loop for pi0 MC 
@@ -783,6 +821,26 @@ void UserEvent970(PaEvent & e) { // begin event loop
       printDebug("    mu: P: " + std::to_string(inMu_TL.P()) + " GeV/c, Charge: " + std::to_string(beam.Q()));
       printDebug("    mu': P: " + std::to_string(outMu_TL.P()) + " GeV/c, Charge: " + std::to_string(outMu.Q()));
       printDebug("    Kinematics: Q2: " + std::to_string(Q2) +  " GeV2, y: " + std::to_string(y) + ", W2: " + std::to_string(W2) + " GeV2, x: " + std::to_string(xbj));
+
+      //*******************************************
+      // Save generated data to tree_gen
+      if (inMu_flag) { // event passes flux check 
+        eventFlags.setFlagByName("fluxGen_flag", true); 
+        if (recCombFound) { // event has at least one DVCS combination for reconstruction 
+
+          for (auto proton: proton_candidates) { 
+            p_camera_TL = proton.p4;
+            t = (targ_TL - p_camera_TL) * (targ_TL - p_camera_TL); 
+            phi_gg = phiRV(inMu_TL, outMu_TL, p_camera_TL, gamma_TL, true);
+            double E_beam = inMu_TL.E(); 
+            weight_PAMBH = Weight_Pam_BH(xbj, Q2, phi_gg, t, E_beam, phase_fac); 
+
+            eventFlags.setFlagByName("saveGen_flag", true);
+            tree_gen->Fill(); 
+          }
+
+        } 
+      }
 
 		} // End loop over vertices 
 
